@@ -16,6 +16,7 @@ import { createCameraFocus } from "./scene/cameraFocus.js";
 import { morphParams } from "./morphogenesis/morphParams.js";
 import { midiNoteToPitchMultiplier } from "./midi/notePitch.js";
 import { updateMidiSmoothing } from "./midi/midiCamera.js";
+import { createUnderwaterSystem } from "./underwater/underwaterSystem.js";
 
 export async function bootApp() {
   const loading = createLoading();
@@ -103,10 +104,16 @@ export async function bootApp() {
     isInteractive: () => params.showChamberGraph,
   });
 
+  const underwaterSystem = createUnderwaterSystem({
+    sceneSystem,
+    morphSystem,
+  });
+
   initPanelResize({
     onResize: () => {
       sceneSystem.resize();
       acousticPanel.onResize();
+      underwaterSystem.onResize();
     },
   });
 
@@ -293,11 +300,13 @@ export async function bootApp() {
     onRefresh: async () => {
       await morphSystem.sync();
       scheduleAnalysis();
+      underwaterSystem?.refreshFromMorph();
     },
     onChamberGraphChange: () => {
       syncChamberGraph();
       chamberPicker?.setEnabled(params.showChamberGraph);
     },
+    underwaterSystem,
   });
 
   await toolsPanel.ready;
@@ -324,6 +333,7 @@ export async function bootApp() {
       morphSystem.applyTransform();
     }
     morphSystem.update(delta);
+    underwaterSystem.update(delta);
 
     sceneSystem.renderer.render(sceneSystem.scene, sceneSystem.camera);
   }

@@ -33,6 +33,7 @@ export function createToolsPanel({
   onRefresh,
   onEnvironmentChange,
   onChamberGraphChange,
+  underwaterSystem,
 }) {
   const pane = new Pane({ title: "Resonant Organisms", container });
 
@@ -149,6 +150,8 @@ export function createToolsPanel({
       sceneSystem.ambient.intensity = params.ambient;
       sceneSystem.scene.backgroundBlurriness = params.bgBlur;
       await onEnvironmentChange?.();
+      underwaterSystem?.applyParams();
+      pane.refresh();
     },
   }).then((api) => {
     morphUi = api;
@@ -192,6 +195,109 @@ export function createToolsPanel({
   }).on("change", (ev) => {
     sceneSystem.ambient.intensity = ev.value;
   });
+
+  const uwFolder = viewTab.addFolder({ title: "Underwater", expanded: false });
+  const onUwChange = () => {
+    underwaterSystem?.applyParams();
+    syncOrganismDirty();
+  };
+  uwFolder
+    .addBinding(params, "uwEnabled", { label: "enable" })
+    .on("change", (ev) => {
+      underwaterSystem?.setEnabled(ev.value);
+      syncOrganismDirty();
+    });
+  uwFolder
+    .addBinding(params, "uwShape", {
+      label: "volume",
+      options: underwaterSystem?.SHAPE_OPTIONS ?? { Sphere: "sphere", Cube: "box" },
+    })
+    .on("change", onUwChange);
+  uwFolder
+    .addBinding(params, "uwPadding", {
+      label: "padding",
+      min: 1.05,
+      max: 10,
+      step: 0.05,
+    })
+    .on("change", onUwChange);
+  uwFolder
+    .addBinding(params, "uwSide", {
+      label: "faces",
+      options: { Outside: "outside", Inside: "inside", Double: "double" },
+    })
+    .on("change", onUwChange);
+  uwFolder
+    .addBinding(params, "uwWaterColor", { label: "water color" })
+    .on("change", onUwChange);
+  uwFolder
+    .addBinding(params, "uwSunColor", { label: "sun color" })
+    .on("change", onUwChange);
+  uwFolder
+    .addBinding(params, "uwDistortion", {
+      label: "distortion",
+      min: 0.5,
+      max: 8,
+      step: 0.1,
+    })
+    .on("change", onUwChange);
+  uwFolder
+    .addBinding(params, "uwWaveSize", {
+      label: "wave size",
+      min: 0.2,
+      max: 4,
+      step: 0.05,
+    })
+    .on("change", onUwChange);
+  uwFolder
+    .addBinding(params, "uwWaveSpeed", {
+      label: "wave speed",
+      min: 0,
+      max: 2,
+      step: 0.05,
+    })
+    .on("change", onUwChange);
+  uwFolder
+    .addBinding(params, "uwAlpha", {
+      label: "opacity",
+      min: 0.15,
+      max: 1,
+      step: 0.01,
+    })
+    .on("change", onUwChange);
+  uwFolder
+    .addBinding(params, "uwCaustics", { label: "caustics" })
+    .on("change", onUwChange);
+  uwFolder
+    .addBinding(params, "uwCausticStrength", {
+      label: "caustic strength",
+      min: 0,
+      max: 2,
+      step: 0.05,
+    })
+    .on("change", onUwChange);
+  uwFolder
+    .addBinding(params, "uwCausticScale", {
+      label: "caustic scale",
+      min: 0.05,
+      max: 1.5,
+      step: 0.01,
+    })
+    .on("change", onUwChange);
+  uwFolder
+    .addBinding(params, "uwCausticSpeed", {
+      label: "caustic speed",
+      min: 0,
+      max: 3,
+      step: 0.05,
+    })
+    .on("change", onUwChange);
+  uwFolder
+    .addBinding(params, "uwLightFollow", { label: "light follows cam" })
+    .on("change", onUwChange);
+  uwFolder
+    .addButton({ title: "Set light from camera (L)" })
+    .on("click", () => underwaterSystem?.setLightFromCamera());
 
   const acousticFolder = soundTab.addFolder({ title: "Acoustics", expanded: true });
   acousticFolder.addBinding(params, "autoAnalyze", { label: "auto analyze" });

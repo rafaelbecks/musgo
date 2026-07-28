@@ -90,15 +90,24 @@ export const params = {
   envSustain: 0.75,
   envRelease: 0.45,
   webMidiEnabled: false,
-};
 
-export const CAMERA_INTRO = {
-  startY: null,
-  endY: 2.5,
-  startZ: 0,
-  endZ: 4,
-  delay: 0.3,
-  duration: 2,
+  // Underwater — water volume around organism (no pool walls) + caustics
+  uwEnabled: false,
+  uwShape: "sphere",
+  uwPadding: 1.35,
+  uwSegments: 64,
+  uwSide: "double",
+  uwWaterColor: "#0a3d4a",
+  uwSunColor: "#ffffff",
+  uwDistortion: 3.2,
+  uwWaveSize: 1.2,
+  uwWaveSpeed: 0.6,
+  uwAlpha: 0.72,
+  uwCaustics: true,
+  uwCausticStrength: 0.55,
+  uwCausticScale: 0.4,
+  uwCausticSpeed: 1,
+  uwLightFollow: false,
 };
 
 export const BRIDGE_DEFAULT_URL = "ws://localhost:57120";

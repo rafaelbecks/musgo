@@ -15,6 +15,26 @@ const VIEWER_KEYS = [
   "ambient",
 ];
 
+/** Underwater volume + caustics (Settings → Underwater). */
+export const UNDERWATER_KEYS = [
+  "uwEnabled",
+  "uwShape",
+  "uwPadding",
+  "uwSegments",
+  "uwSide",
+  "uwWaterColor",
+  "uwSunColor",
+  "uwDistortion",
+  "uwWaveSize",
+  "uwWaveSpeed",
+  "uwAlpha",
+  "uwCaustics",
+  "uwCausticStrength",
+  "uwCausticScale",
+  "uwCausticSpeed",
+  "uwLightFollow",
+];
+
 const DEFAULT_SPECIMEN_LABEL = "morphogenesis · acoustic organism";
 
 /** @type {{ serialize: () => object | null, apply: (midi: object) => void | Promise<void> } | null} */
@@ -102,6 +122,7 @@ function contentFingerprint() {
   return JSON.stringify({
     morph: Object.fromEntries(MORPH_PARAM_KEYS.map((k) => [k, morphParams[k]])),
     viewer: Object.fromEntries(VIEWER_KEYS.map((k) => [k, viewerParams[k]])),
+    underwater: Object.fromEntries(UNDERWATER_KEYS.map((k) => [k, viewerParams[k]])),
     midi: midiHooks?.serialize?.() ?? null,
   });
 }
@@ -115,6 +136,7 @@ export function serializeOrganism({ id = session.id ?? createOrganismId() } = {}
     createdAt: new Date().toISOString(),
     morph: Object.fromEntries(MORPH_PARAM_KEYS.map((k) => [k, morphParams[k]])),
     viewer: Object.fromEntries(VIEWER_KEYS.map((k) => [k, viewerParams[k]])),
+    underwater: Object.fromEntries(UNDERWATER_KEYS.map((k) => [k, viewerParams[k]])),
   };
   const midi = midiHooks?.serialize?.();
   if (midi) state.midi = midi;
@@ -139,6 +161,15 @@ export function applyOrganismState(state) {
     for (const key of VIEWER_KEYS) {
       if (state.viewer[key] !== undefined) {
         viewerParams[key] = state.viewer[key];
+      }
+    }
+  }
+
+  const underwater = state.underwater;
+  if (underwater && typeof underwater === "object") {
+    for (const key of UNDERWATER_KEYS) {
+      if (underwater[key] !== undefined) {
+        viewerParams[key] = underwater[key];
       }
     }
   }
