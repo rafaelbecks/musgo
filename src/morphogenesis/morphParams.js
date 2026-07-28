@@ -5,6 +5,7 @@ export const MORPH_SHAPES = [
   "lopezros",
   "gielis",
   "baschetLeaf",
+  "lsystem",
   "model",
 ];
 
@@ -15,6 +16,7 @@ export const SHAPE_LABELS = {
   lopezros: "López–Ros",
   gielis: "Gielis superformula",
   baschetLeaf: "Baschet leaf",
+  lsystem: "L-system organism",
   model: "model",
 };
 
@@ -69,6 +71,17 @@ export const morphParams = {
   leafFoldDepth: 0.28,
   leafFoldPower: 1.15,
   leafBulge: 0.58,
+  lsystemPreset: "shrimp",
+  lsystemIterations: 3,
+  lsystemAngle: 0,
+  lsystemStep: 0.35,
+  lsystemTubeRadius: 0.05,
+  lsystemTaper: 0.9,
+  lsystemBranchTaper: 0.78,
+  lsystemLengthDecay: 0.94,
+  lsystemSegments: 1,
+  lsystemRadialSegments: 6,
+  lsystemTubularDetail: 2,
   rotationX: 0,
   rotationY: 0,
   rotationZ: 0,
@@ -148,4 +161,38 @@ export function clampMorphParams() {
   morphParams.leafFoldDepth = Math.max(0, Math.min(1.5, morphParams.leafFoldDepth));
   morphParams.leafFoldPower = Math.max(0.2, Math.min(3, morphParams.leafFoldPower));
   morphParams.leafBulge = Math.max(0.15, Math.min(0.85, morphParams.leafBulge));
+  if (!["shrimp", "plant", "bush", "algae"].includes(morphParams.lsystemPreset)) {
+    morphParams.lsystemPreset = "shrimp";
+  }
+  morphParams.lsystemIterations = Math.max(
+    1,
+    Math.min(20, Math.round(morphParams.lsystemIterations))
+  );
+  morphParams.lsystemAngle = Math.max(0, Math.min(90, morphParams.lsystemAngle));
+  morphParams.lsystemStep = Math.max(0.05, Math.min(1.5, morphParams.lsystemStep));
+  morphParams.lsystemTubeRadius = Math.max(
+    0.005,
+    Math.min(0.25, morphParams.lsystemTubeRadius)
+  );
+  morphParams.lsystemTaper = Math.max(0.5, Math.min(0.99, morphParams.lsystemTaper));
+  morphParams.lsystemBranchTaper = Math.max(
+    0.4,
+    Math.min(1, morphParams.lsystemBranchTaper)
+  );
+  morphParams.lsystemLengthDecay = Math.max(
+    0.7,
+    Math.min(1, morphParams.lsystemLengthDecay)
+  );
+  morphParams.lsystemSegments = Math.max(
+    1,
+    Math.min(6, Math.round(morphParams.lsystemSegments))
+  );
+  morphParams.lsystemRadialSegments = Math.max(
+    3,
+    Math.min(16, Math.round(morphParams.lsystemRadialSegments))
+  );
+  morphParams.lsystemTubularDetail = Math.max(
+    1,
+    Math.min(6, Math.round(morphParams.lsystemTubularDetail))
+  );
 }

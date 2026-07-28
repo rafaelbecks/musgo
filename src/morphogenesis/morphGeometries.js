@@ -6,6 +6,7 @@ import {
 } from "./minimalSurfaces.js";
 import { createGielisGeometry } from "./gielis.js";
 import { createBaschetLeafGeometry } from "./baschetLeaf/index.js";
+import { createLSystemGeometry } from "./lsystem/index.js";
 
 export function createMorphGeometry(shape, extent, params = morphParams) {
   const segments = Math.max(16, Math.floor(params.shapeSegments));
@@ -45,6 +46,9 @@ export function createMorphGeometry(shape, extent, params = morphParams) {
 
     case "baschetLeaf":
       return createBaschetLeafGeometry(extent, params);
+
+    case "lsystem":
+      return createLSystemGeometry(extent, params);
 
     default:
       return new THREE.TorusGeometry(1, 0.35, 16, 64);

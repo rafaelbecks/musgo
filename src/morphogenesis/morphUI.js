@@ -1,5 +1,6 @@
 import { morphParams, SHAPE_LABELS, MORPH_SHAPES } from "./morphParams.js";
 import { MINIMAL_SHAPES } from "./minimalSurfaces.js";
+import { LSYSTEM_PRESET_LABELS } from "./lsystem/index.js";
 import { loadModelCatalog, modelsToOptions } from "./modelCatalog.js";
 import {
   saveOrganism,
@@ -33,6 +34,10 @@ const GIELIS_PHI_MODE_OPTIONS = {
   "latitude (−π/2…π/2)": "latitude",
   "full period": "full",
 };
+
+const LSYSTEM_PRESET_OPTIONS = Object.fromEntries(
+  Object.entries(LSYSTEM_PRESET_LABELS).map(([id, label]) => [label, id])
+);
 
 function bind(folder, obj, key, opts, onChange) {
   const input = folder.addBinding(obj, key, opts);
@@ -79,11 +84,14 @@ export async function setupMorphUI(
     shapeFolders.lopez.hidden = shape !== "lopezros";
     shapeFolders.gielis.hidden = shape !== "gielis";
     shapeFolders.leaf.hidden = shape !== "baschetLeaf";
+    shapeFolders.lsystem.hidden = shape !== "lsystem";
+    shapeFolders.lsystemSegments.hidden =
+      shape !== "lsystem" || morphParams.lsystemPreset !== "shrimp";
     const stacked = morphParams.lopezRosMode === "stacked";
     shapeFolders.lopezStackCount.hidden = !stacked;
     shapeFolders.lopezStackSpacing.hidden = !stacked;
     if (modelInput) modelInput.hidden = !isModel;
-    if (segmentsInput) segmentsInput.hidden = isModel;
+    if (segmentsInput) segmentsInput.hidden = isModel || shape === "lsystem";
   }
 
   const shapeInput = folder.addBinding(morphParams, "shape", {
@@ -286,6 +294,88 @@ export async function setupMorphUI(
   bind(shapeFolders.leaf, morphParams, "leafFoldDepth", { label: "fold", min: 0, max: 1, step: 0.01 }, onChange);
   bind(shapeFolders.leaf, morphParams, "leafFoldPower", { label: "fold curve", min: 0.3, max: 2.5, step: 0.05 }, onChange);
   bind(shapeFolders.leaf, morphParams, "leafResolution", { label: "resolution", min: 8, max: 256, step: 1 }, onChange);
+
+  shapeFolders.lsystem = folder.addFolder({ title: "L-system organism", expanded: true });
+  bind(
+    shapeFolders.lsystem,
+    morphParams,
+    "lsystemPreset",
+    { label: "grammar", options: LSYSTEM_PRESET_OPTIONS },
+    (ev) => {
+      syncShapeFolders();
+      onChange?.(ev);
+    }
+  );
+  bind(
+    shapeFolders.lsystem,
+    morphParams,
+    "lsystemIterations",
+    { label: "iterations", min: 1, max: 20, step: 1 },
+    onChange
+  );
+  shapeFolders.lsystemSegments = bind(
+    shapeFolders.lsystem,
+    morphParams,
+    "lsystemSegments",
+    { label: "segments/step", min: 1, max: 6, step: 1 },
+    onChange
+  );
+  bind(
+    shapeFolders.lsystem,
+    morphParams,
+    "lsystemAngle",
+    { label: "angle° (0=auto)", min: 0, max: 90, step: 0.5 },
+    onChange
+  );
+  bind(
+    shapeFolders.lsystem,
+    morphParams,
+    "lsystemStep",
+    { label: "step", min: 0.05, max: 1.2, step: 0.01 },
+    onChange
+  );
+  bind(
+    shapeFolders.lsystem,
+    morphParams,
+    "lsystemTubeRadius",
+    { label: "tube radius", min: 0.01, max: 0.2, step: 0.005 },
+    onChange
+  );
+  bind(
+    shapeFolders.lsystem,
+    morphParams,
+    "lsystemBranchTaper",
+    { label: "branch taper", min: 0.4, max: 1, step: 0.01 },
+    onChange
+  );
+  bind(
+    shapeFolders.lsystem,
+    morphParams,
+    "lsystemTaper",
+    { label: "radius taper (!)", min: 0.5, max: 0.99, step: 0.01 },
+    onChange
+  );
+  bind(
+    shapeFolders.lsystem,
+    morphParams,
+    "lsystemLengthDecay",
+    { label: "length decay", min: 0.7, max: 1, step: 0.01 },
+    onChange
+  );
+  bind(
+    shapeFolders.lsystem,
+    morphParams,
+    "lsystemRadialSegments",
+    { label: "radial segs", min: 3, max: 16, step: 1 },
+    onChange
+  );
+  bind(
+    shapeFolders.lsystem,
+    morphParams,
+    "lsystemTubularDetail",
+    { label: "tube detail", min: 1, max: 6, step: 1 },
+    onChange
+  );
 
   const rotFolder = folder.addFolder({ title: "Rotation", expanded: true });
 

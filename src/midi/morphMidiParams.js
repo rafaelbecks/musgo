@@ -8,6 +8,7 @@ import { MORPH_SHAPES, SHAPE_LABELS } from "../morphogenesis/morphParams.js";
 const GIELIS_FAMILY_OPTIONS = ["superellipse", "superrose", "superspiral"];
 const GIELIS_PHI_MODE_OPTIONS = ["latitude", "full"];
 const LOPEZ_ROS_MODE_OPTIONS = ["catenoid", "stacked"];
+const LSYSTEM_PRESET_OPTIONS = ["shrimp", "plant", "bush", "algae"];
 const SIDE_OPTIONS = ["outside", "inside", "double"];
 
 function num(key, label, min, max, step) {
@@ -85,6 +86,19 @@ const SHAPE_SPECIFIC = {
     num("leafFoldDepth", "fold", 0, 1, 0.01),
     num("leafFoldPower", "fold curve", 0.3, 2.5, 0.05),
     num("leafResolution", "resolution", 8, 256, 1),
+  ],
+  lsystem: [
+    select("lsystemPreset", "grammar", LSYSTEM_PRESET_OPTIONS),
+    num("lsystemIterations", "iterations", 1, 20, 1),
+    num("lsystemSegments", "segments/step", 1, 6, 1),
+    num("lsystemAngle", "angle°", 0, 90, 0.5),
+    num("lsystemStep", "step", 0.05, 1.2, 0.01),
+    num("lsystemTubeRadius", "tube radius", 0.01, 0.2, 0.005),
+    num("lsystemBranchTaper", "branch taper", 0.4, 1, 0.01),
+    num("lsystemTaper", "radius taper", 0.5, 0.99, 0.01),
+    num("lsystemLengthDecay", "length decay", 0.7, 1, 0.01),
+    num("lsystemRadialSegments", "radial segs", 3, 16, 1),
+    num("lsystemTubularDetail", "tube detail", 1, 6, 1),
   ],
   model: [],
 };
