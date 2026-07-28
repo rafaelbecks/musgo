@@ -55,38 +55,3 @@ export function buildParametricMesh({
   geometry.computeBoundingSphere();
   return geometry;
 }
-
-/** Merge multiple indexed parametric meshes into one BufferGeometry. */
-export function mergeParametricMeshes(geometries) {
-  const merged = new THREE.BufferGeometry();
-  const positions = [];
-  const uvs = [];
-  const indices = [];
-  let vertexOffset = 0;
-
-  for (const geometry of geometries) {
-    const pos = geometry.getAttribute("position");
-    const uv = geometry.getAttribute("uv");
-    const index = geometry.getIndex();
-    if (!pos || !index) continue;
-
-    for (let i = 0; i < pos.count; i++) {
-      positions.push(pos.getX(i), pos.getY(i), pos.getZ(i));
-      if (uv) uvs.push(uv.getX(i), uv.getY(i));
-    }
-
-    for (let i = 0; i < index.count; i++) {
-      indices.push(index.array[i] + vertexOffset);
-    }
-
-    vertexOffset += pos.count;
-    geometry.dispose();
-  }
-
-  merged.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  if (uvs.length) merged.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
-  merged.setIndex(indices);
-  merged.computeVertexNormals();
-  merged.computeBoundingSphere();
-  return merged;
-}

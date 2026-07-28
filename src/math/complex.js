@@ -21,37 +21,10 @@ export function cScale(a, s) {
   return { re: a.re * s, im: a.im * s };
 }
 
-export function cConj(a) {
-  return { re: a.re, im: -a.im };
-}
-
 export function cAbs2(a) {
   return a.re * a.re + a.im * a.im;
 }
 
 export function cAbs(a) {
   return Math.sqrt(cAbs2(a));
-}
-
-export function cInv(a) {
-  const d = cAbs2(a);
-  if (d < 1e-20) return c(NaN, NaN);
-  return { re: a.re / d, im: -a.im / d };
-}
-
-export function cDiv(a, b) {
-  return cMul(a, cInv(b));
-}
-
-export function cExp(a) {
-  const e = Math.exp(a.re);
-  return { re: e * Math.cos(a.im), im: e * Math.sin(a.im) };
-}
-
-export function cLogAbs(a) {
-  return 0.5 * Math.log(cAbs2(a));
-}
-
-export function cFromUV(u, v) {
-  return c(u, v);
 }

@@ -38,13 +38,6 @@ export function weierstrassP(z, g2 = LEMNISCATIC_G2, g3 = 0, terms = 10) {
   return sum;
 }
 
-export function weierstrassPPrime(z, g2 = LEMNISCATIC_G2, g3 = 0, terms = 10) {
-  const h = 1e-5;
-  const p1 = weierstrassP(C.c(z.re + h, z.im), g2, g3, terms);
-  const p0 = weierstrassP(z, g2, g3, terms);
-  return C.cScale(C.cSub(p1, p0), 1 / h);
-}
-
 function cInvSafe(z) {
   const d = C.cAbs2(z);
   if (d < 1e-14) return C.c(NaN, NaN);

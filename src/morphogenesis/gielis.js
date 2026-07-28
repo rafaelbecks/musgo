@@ -1,8 +1,5 @@
 import { buildParametricMesh } from "./parametricMesh.js";
 
-export const GIELIS_FAMILIES = ["superellipse", "superrose", "superspiral"];
-export const GIELIS_PHI_MODES = ["latitude", "full"];
-
 /**
  * Johan Gielis superformula in polar form.
  * @see https://en.wikipedia.org/wiki/Superformula

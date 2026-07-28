@@ -1,12 +1,3 @@
-export {
-  generateLeafShape,
-  sampleLeafOutline,
-  leafPointAt,
-  DEFAULT_LEAF_OUTLINE,
-} from "./leafOutline.js";
-export { generateLeafGeometry } from "./leafGeometry.js";
-export { updateLeafMesh } from "./leafMesh.js";
-
 import { DEFAULT_LEAF_OUTLINE } from "./leafOutline.js";
 import { generateLeafGeometry } from "./leafGeometry.js";
 

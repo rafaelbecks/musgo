@@ -1,5 +1,3 @@
-import * as THREE from "three";
-
 /**
  * Baschet-style almond outline (no lobes).
  *
@@ -97,14 +95,6 @@ export function sampleLeafOutline(params = {}) {
   return points;
 }
 
-/** @deprecated kept for callers; prefer leafEdgePoint. */
-export function leafPointAt(theta, params = {}) {
-  const v = theta / Math.PI;
-  const side = theta <= Math.PI / 2 ? 1 : -1;
-  const vn = side > 0 ? v * 2 : 2 - v * 2;
-  return leafEdgePoint(vn, side, params);
-}
-
 /** Polygon centroid (area-weighted) for centering the leaf. */
 export function outlineCentroid(points) {
   const n = points.length;
@@ -134,24 +124,4 @@ export function outlineCentroid(points) {
   }
 
   return { x: cx / (3 * area2), y: cy / (3 * area2) };
-}
-
-/**
- * Procedural Baschet-inspired leaf outline as a THREE.Shape (XY plane).
- */
-export function generateLeafShape(params = {}) {
-  const outline = sampleLeafOutline(params);
-  const shape = new THREE.Shape();
-
-  if (!outline.length) {
-    shape.moveTo(0, 0);
-    return shape;
-  }
-
-  shape.moveTo(outline[0].x, outline[0].y);
-  for (let i = 1; i < outline.length; i++) {
-    shape.lineTo(outline[i].x, outline[i].y);
-  }
-  shape.closePath();
-  return shape;
 }

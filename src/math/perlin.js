@@ -22,33 +22,6 @@ function fade(t) {
   return t * t * t * (t * (t * 6 - 15) + 10);
 }
 
-export function createPerlin2D(seed = 0) {
-  const perm = createPerm(seed);
-
-  function grad(hash, x, y) {
-    const h = hash & 3;
-    const u = h < 2 ? x : y;
-    const v = h < 2 ? y : x;
-    return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
-  }
-
-  return function noise(x, y) {
-    const xi = Math.floor(x) & 255;
-    const yi = Math.floor(y) & 255;
-    const xf = x - Math.floor(x);
-    const yf = y - Math.floor(y);
-    const u = fade(xf);
-    const v = fade(yf);
-    const aa = perm[xi] + yi;
-    const ab = perm[xi] + yi + 1;
-    const ba = perm[xi + 1] + yi;
-    const bb = perm[xi + 1] + yi + 1;
-    const x1 = THREE.MathUtils.lerp(grad(perm[aa], xf, yf), grad(perm[ba], xf - 1, yf), u);
-    const x2 = THREE.MathUtils.lerp(grad(perm[ab], xf, yf - 1), grad(perm[bb], xf - 1, yf - 1), u);
-    return THREE.MathUtils.lerp(x1, x2, v);
-  };
-}
-
 export function createPerlin3D(seed = 0) {
   const perm = createPerm(seed);
 
