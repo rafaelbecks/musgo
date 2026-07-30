@@ -4,11 +4,12 @@
  * Frequency LFO and rotation are intentionally excluded.
  */
 import { MORPH_SHAPES, SHAPE_LABELS } from "../morphogenesis/morphParams.js";
+import { LSYSTEM_PRESETS } from "../morphogenesis/lsystem/grammars.js";
 
 const GIELIS_FAMILY_OPTIONS = ["superellipse", "superrose", "superspiral"];
 const GIELIS_PHI_MODE_OPTIONS = ["latitude", "full"];
 const LOPEZ_ROS_MODE_OPTIONS = ["catenoid", "stacked"];
-const LSYSTEM_PRESET_OPTIONS = ["shrimp", "plant", "bush", "algae"];
+const LSYSTEM_PRESET_OPTIONS = LSYSTEM_PRESETS;
 const SIDE_OPTIONS = ["outside", "inside", "double"];
 
 function num(key, label, min, max, step) {

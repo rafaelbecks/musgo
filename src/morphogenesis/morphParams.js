@@ -1,3 +1,5 @@
+import { LSYSTEM_PRESETS } from "./lsystem/grammars.js";
+
 export const MORPH_SHAPES = [
   "torus",
   "torusknot",
@@ -161,7 +163,7 @@ export function clampMorphParams() {
   morphParams.leafFoldDepth = Math.max(0, Math.min(1.5, morphParams.leafFoldDepth));
   morphParams.leafFoldPower = Math.max(0.2, Math.min(3, morphParams.leafFoldPower));
   morphParams.leafBulge = Math.max(0.15, Math.min(0.85, morphParams.leafBulge));
-  if (!["shrimp", "plant", "bush", "algae"].includes(morphParams.lsystemPreset)) {
+  if (!LSYSTEM_PRESETS.includes(morphParams.lsystemPreset)) {
     morphParams.lsystemPreset = "shrimp";
   }
   morphParams.lsystemIterations = Math.max(

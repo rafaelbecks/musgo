@@ -30,6 +30,19 @@ export const HDR_ENVIRONMENTS = {
   exr_5: { label: "Cielo y edificio (EXR)", file: "exr/5_env.exr", format: "exr" },
   exr_6: { label: "Puente nocturno (EXR)", file: "exr/6.jpg_env.exr", format: "exr" },
   exr_7: { label: "Árboles borrosos (EXR)", file: "exr/7_env.exr", format: "exr" },
+  // From env/raw photos (blue shades series)
+  blue_shades_1: { label: "Blue shades 1", file: "exr/blue_shades_1_env.exr", format: "exr" },
+  blue_shades_2: { label: "Blue shades 2", file: "exr/blue_shades_2_env.exr", format: "exr" },
+  blue_shades_3: { label: "Blue shades 3", file: "exr/blue_shades_3_env.exr", format: "exr" },
+  blue_shades_4: { label: "Blue shades 4", file: "exr/blue_shades_4_env.exr", format: "exr" },
+  blue_shades_5: { label: "Blue shades 5", file: "exr/blue_shades_5_env.exr", format: "exr" },
+  blue_shades_6: { label: "Blue shades 6", file: "exr/blue_shades_6_env.exr", format: "exr" },
+  blue_shades_7: { label: "Blue shades 7", file: "exr/blue_shades_7_env.exr", format: "exr" },
+  blue_shades_8: { label: "Blue shades 8", file: "exr/blue_shades_8_env.exr", format: "exr" },
+  blue_shades_9: { label: "Blue shades 9", file: "exr/blue_shades_9_env.exr", format: "exr" },
+  blue_shades_10: { label: "Blue shades 10", file: "exr/blue_shades_10_env.exr", format: "exr" },
+  blue_shades_11: { label: "Blue shades 11", file: "exr/blue_shades_11_env.exr", format: "exr" },
+  blue_shades_12: { label: "Blue shades 12", file: "exr/blue_shades_12_env.exr", format: "exr" },
 };
 
 export function getEnvOptions() {

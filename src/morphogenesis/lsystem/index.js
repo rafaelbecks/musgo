@@ -1,10 +1,15 @@
-import { resolveLSystemGrammar } from "./grammars.js";
+import {
+  resolveLSystemGrammar,
+  LSYSTEM_HORIZONTAL_PRESETS,
+} from "./grammars.js";
 import { rewriteLSystem } from "./rewrite.js";
 import { interpretTurtle } from "./turtle.js";
 import { strokesToGeometry, fitGeometryToSize } from "./geometry.js";
 
 export {
+  LSYSTEM_PRESETS,
   LSYSTEM_PRESET_LABELS,
+  LSYSTEM_HORIZONTAL_PRESETS,
   resolveLSystemGrammar,
 } from "./grammars.js";
 
@@ -51,8 +56,8 @@ export function createLSystemGeometry(extent, params) {
   const targetSize = Math.max(0.1, extent * (params.envelopeRadius ?? 1));
   fitGeometryToSize(geometry, targetSize);
 
-  // Shrimp reads better horizontal (body along +X)
-  if (preset === "shrimp") {
+  // Shrimp variants read better horizontal (body along +X)
+  if (LSYSTEM_HORIZONTAL_PRESETS.has(preset)) {
     geometry.rotateZ(-Math.PI / 2);
     geometry.computeBoundingBox();
     geometry.computeBoundingSphere();

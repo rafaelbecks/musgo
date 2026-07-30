@@ -4,7 +4,18 @@
 
 Playground for **generative organisms**: procedural morphogenesis, material textures, and saveable specimen state (`.organism` files).
 
-Shape families include torus and knots, minimal surfaces (Chen–Gackstätter, López–Ros), Gielis superformula solids, Baschet-inspired leaf resonators, and loaded GLB models. Deform with noise, dress with glass/physical materials and HDR/EXR environments, then keep iterating on a specimen with load / save.
+Deform with noise, dress with glass/physical materials and HDR/EXR environments, then keep iterating on a specimen with load / save.
+
+## Shape algorithms
+
+Procedural families available in the morphogenesis UI:
+
+- **Torus / torus knot** — classic ring forms (acoustics are designed for these)
+- **Minimal surfaces** — Chen–Gackstätter and López–Ros (catenoid or stacked)
+- **Gielis superformula** — spherical product of two 2D superformulas (superellipse / superrose / superspiral envelopes)
+- **Baschet leaf** — folded-metal leaf outline lofted into a resonator shell
+- **L-system organism** — rewrite grammars interpreted by a 3D turtle into tapered tubes (presets: shrimp, shrimp metafysica, plant/fern, bush, algae, dragon)
+- **Loaded GLB** — external models from `cosos/`
 
 ## Acoustic model (torus-first)
 
@@ -18,6 +29,7 @@ On other shapes the analyzer still runs, but results are unreliable, it basicall
 - **[Joaquín Orellana](https://www.youtube.com/@JoaquinOrellanaylaUtileriaSono)**: *útiles sonoros*: sculptural instruments derived from the marimba, built to evoke electronic and imagined timbres
 - **[Baschet brothers](https://baschet.org/site/)**:  *structures sonores*: folded-metal sculptures with conical resonators and diffusers, form and timbre inseparable ([Baschet Sound Structures Association](https://baschet.org/site/index.php/the-baschet-story/))
 - **[Johan Gielis](https://en.wikipedia.org/wiki/Superformula)** — superformula as a compact generator of natural and abstract forms
+- **[Aristid Lindenmayer](https://en.wikipedia.org/wiki/L-system)** — L-systems / turtle interpretation for plant-like and organism growth
 
 ## Run
 

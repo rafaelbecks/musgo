@@ -6,7 +6,8 @@
   "scripts": {
     "start": "serve . -p 9990",
     "bridge": "node bridge/server.js",
-    "bridge:test": "node bridge/test-osc.js"
+    "bridge:test": "node bridge/test-osc.js",
+    "convert:env": "bash scripts/convert-env-raw.sh"
   },
   "author": "Rafael Becerra",
   "license": "MIT",
