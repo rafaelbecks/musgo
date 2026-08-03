@@ -1,12 +1,17 @@
 # MUSGO
 
-**Morfogénesis de Unidades y Sistemas Generativos Orgánicos**
+<p align="center">
+  <img src="./header.png" alt="MUSGO — Morfogénesis de Unidades y Sistemas Generativos Orgánicos" width="100%" />
+</p>
 
-![MUSGO](./SCREENSHOT.png)
+| | |
+|:---:|:---:|
+| <img src="./screenshots/gielis-anemona.png" alt="Gielis superformula anemone" width="100%" /> | <img src="./screenshots/lsystem-anthropod.png" alt="L-system anthropod" width="100%" /> |
+| <img src="./screenshots/lsystem-bush.png" alt="L-system bush" width="100%" /> | <img src="./screenshots/gielis-insecto.png" alt="Gielis insect form" width="100%" /> |
 
 Playground for **generative organisms**: procedural morphogenesis, material textures, and saveable specimen state (`.organism` files).
 
-Open the app on a splash home — animated L-system fern behind the MUSGO wordmark — then press **space** to enter the editor, or drop a `.organism` file to load it. Deform with noise, dress with glass/physical materials and HDR/EXR environments, and keep iterating with load / save.
+Open the app and click or press **space** to enter the editor, or drop a `.organism` file to load it. Deform with noise, dress with glass/physical materials and HDR/EXR environments, and keep iterating with load / save.
 
 ## Shape algorithms
 
