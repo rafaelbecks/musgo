@@ -15,7 +15,7 @@ export const LSYSTEM_PRESETS = [
 
 export const LSYSTEM_PRESET_LABELS = {
   shrimp: "shrimp",
-  shrimpMetafysica: "weird fish",
+  shrimpMetafysica: "anthropod",
   plant: "plant (fern)",
   bush: "bush",
   algae: "algae",
