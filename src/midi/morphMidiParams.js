@@ -5,11 +5,23 @@
  */
 import { MORPH_SHAPES, SHAPE_LABELS } from "../morphogenesis/morphParams.js";
 import { LSYSTEM_PRESETS } from "../morphogenesis/lsystem/grammars.js";
+import {
+  DLA_SEED_MODES,
+  DLA_LAUNCH_MODES,
+  DLA_CONNECTIVITY,
+  DLA_ELEMENT_SHAPES,
+  NOISE_TARGETS,
+} from "../morphogenesis/dla/constants.js";
 
 const GIELIS_FAMILY_OPTIONS = ["superellipse", "superrose", "superspiral"];
 const GIELIS_PHI_MODE_OPTIONS = ["latitude", "full"];
 const LOPEZ_ROS_MODE_OPTIONS = ["catenoid", "stacked"];
 const LSYSTEM_PRESET_OPTIONS = LSYSTEM_PRESETS;
+const DLA_SEED_MODE_OPTIONS = DLA_SEED_MODES;
+const DLA_LAUNCH_MODE_OPTIONS = DLA_LAUNCH_MODES;
+const DLA_CONNECTIVITY_OPTIONS = DLA_CONNECTIVITY;
+const DLA_ELEMENT_SHAPE_OPTIONS = DLA_ELEMENT_SHAPES;
+const NOISE_TARGET_OPTIONS = NOISE_TARGETS;
 const SIDE_OPTIONS = ["outside", "inside", "double"];
 
 function num(key, label, min, max, step) {
@@ -101,11 +113,31 @@ const SHAPE_SPECIFIC = {
     num("lsystemRadialSegments", "radial segs", 3, 16, 1),
     num("lsystemTubularDetail", "tube detail", 1, 6, 1),
   ],
+  dla: [
+    num("dlaParticleCount", "particles", 50, 8000, 50),
+    num("dlaGridSize", "grid size", 32, 128, 4),
+    num("dlaSeed", "seed", 0, 99999, 1),
+    select("dlaSeedMode", "seed structure", DLA_SEED_MODE_OPTIONS),
+    select("dlaLaunchMode", "launch", DLA_LAUNCH_MODE_OPTIONS),
+    select("dlaConnectivity", "neighbors", DLA_CONNECTIVITY_OPTIONS),
+    num("dlaStickiness", "stickiness", 0.01, 1, 0.01),
+    num("dlaMinNeighbors", "min neighbors", 1, 8, 1),
+    num("dlaHitsRequired", "hits to stick", 1, 40, 1),
+    num("dlaUpBias", "up bias", -1, 1, 0.05),
+    num("dlaOutwardBias", "outward bias", -1, 1, 0.05),
+    num("dlaNoiseBias", "noise flow", 0, 1, 0.05),
+    num("dlaNoiseScale", "noise scale", 0.02, 2, 0.01),
+    num("dlaParticleRadius", "blob radius", 0.3, 1.4, 0.05),
+    select("dlaElementShape", "element", DLA_ELEMENT_SHAPE_OPTIONS),
+    num("dlaOrientRandom", "orient random", 0, 1, 0.05),
+    num("dlaMeshDetail", "mesh detail", 0, 2, 1),
+  ],
   model: [],
 };
 
 const NOISE_PARAMS = [
   checkbox("noiseEnabled", "enabled"),
+  select("noiseTarget", "target", NOISE_TARGET_OPTIONS),
   num("noiseAmplitude", "amplitude", 0, 1, 0.01),
   num("noiseScale", "frequency", 0.1, 5, 0.05),
   num("noiseSeed", "seed", 0, 9999, 1),

@@ -1,6 +1,13 @@
 import { morphParams, SHAPE_LABELS, MORPH_SHAPES } from "./morphParams.js";
 import { MINIMAL_SHAPES } from "./minimalSurfaces.js";
 import { LSYSTEM_PRESET_LABELS } from "./lsystem/index.js";
+import {
+  DLA_SEED_MODE_LABELS,
+  DLA_LAUNCH_MODE_LABELS,
+  DLA_CONNECTIVITY_LABELS,
+  DLA_ELEMENT_SHAPE_LABELS,
+  NOISE_TARGET_LABELS,
+} from "./dla/constants.js";
 import { loadModelCatalog, modelsToOptions } from "./modelCatalog.js";
 import {
   saveOrganism,
@@ -39,6 +46,26 @@ const LSYSTEM_PRESET_OPTIONS = Object.fromEntries(
   Object.entries(LSYSTEM_PRESET_LABELS).map(([id, label]) => [label, id])
 );
 
+const DLA_SEED_MODE_OPTIONS = Object.fromEntries(
+  Object.entries(DLA_SEED_MODE_LABELS).map(([id, label]) => [label, id])
+);
+
+const DLA_LAUNCH_MODE_OPTIONS = Object.fromEntries(
+  Object.entries(DLA_LAUNCH_MODE_LABELS).map(([id, label]) => [label, id])
+);
+
+const DLA_CONNECTIVITY_OPTIONS = Object.fromEntries(
+  Object.entries(DLA_CONNECTIVITY_LABELS).map(([id, label]) => [label, id])
+);
+
+const DLA_ELEMENT_SHAPE_OPTIONS = Object.fromEntries(
+  Object.entries(DLA_ELEMENT_SHAPE_LABELS).map(([id, label]) => [label, id])
+);
+
+const NOISE_TARGET_OPTIONS = Object.fromEntries(
+  Object.entries(NOISE_TARGET_LABELS).map(([id, label]) => [label, id])
+);
+
 function bind(folder, obj, key, opts, onChange) {
   const input = folder.addBinding(obj, key, opts);
   input.on("change", () => onChange?.());
@@ -73,6 +100,7 @@ export async function setupMorphUI(
   const shapeFolders = {};
   let modelInput = null;
   let segmentsInput = null;
+  let noiseTargetInput = null;
 
   function syncShapeFolders() {
     const shape = morphParams.shape;
@@ -87,11 +115,15 @@ export async function setupMorphUI(
     shapeFolders.lsystem.hidden = shape !== "lsystem";
     shapeFolders.lsystemSegments.hidden =
       shape !== "lsystem" || morphParams.lsystemPreset !== "shrimp";
+    shapeFolders.dla.hidden = shape !== "dla";
     const stacked = morphParams.lopezRosMode === "stacked";
     shapeFolders.lopezStackCount.hidden = !stacked;
     shapeFolders.lopezStackSpacing.hidden = !stacked;
     if (modelInput) modelInput.hidden = !isModel;
-    if (segmentsInput) segmentsInput.hidden = isModel || shape === "lsystem";
+    if (segmentsInput) {
+      segmentsInput.hidden = isModel || shape === "lsystem" || shape === "dla";
+    }
+    if (noiseTargetInput) noiseTargetInput.hidden = shape !== "dla";
   }
 
   const shapeInput = folder.addBinding(morphParams, "shape", {
@@ -377,6 +409,127 @@ export async function setupMorphUI(
     onChange
   );
 
+  shapeFolders.dla = folder.addFolder({ title: "DLA (moss / coral)", expanded: true });
+  bind(
+    shapeFolders.dla,
+    morphParams,
+    "dlaParticleCount",
+    { label: "particles", min: 50, max: 8000, step: 50 },
+    onChange
+  );
+  bind(
+    shapeFolders.dla,
+    morphParams,
+    "dlaGridSize",
+    { label: "grid size", min: 32, max: 128, step: 4 },
+    onChange
+  );
+  bind(
+    shapeFolders.dla,
+    morphParams,
+    "dlaSeed",
+    { label: "seed", min: 0, max: 99999, step: 1 },
+    onChange
+  );
+  bind(
+    shapeFolders.dla,
+    morphParams,
+    "dlaSeedMode",
+    { label: "seed structure", options: DLA_SEED_MODE_OPTIONS },
+    onChange
+  );
+  bind(
+    shapeFolders.dla,
+    morphParams,
+    "dlaLaunchMode",
+    { label: "launch", options: DLA_LAUNCH_MODE_OPTIONS },
+    onChange
+  );
+  bind(
+    shapeFolders.dla,
+    morphParams,
+    "dlaConnectivity",
+    { label: "neighbors", options: DLA_CONNECTIVITY_OPTIONS },
+    onChange
+  );
+  bind(
+    shapeFolders.dla,
+    morphParams,
+    "dlaStickiness",
+    { label: "stickiness", min: 0.01, max: 1, step: 0.01 },
+    onChange
+  );
+  bind(
+    shapeFolders.dla,
+    morphParams,
+    "dlaMinNeighbors",
+    { label: "min neighbors", min: 1, max: 8, step: 1 },
+    onChange
+  );
+  bind(
+    shapeFolders.dla,
+    morphParams,
+    "dlaHitsRequired",
+    { label: "hits to stick", min: 1, max: 40, step: 1 },
+    onChange
+  );
+  bind(
+    shapeFolders.dla,
+    morphParams,
+    "dlaUpBias",
+    { label: "up bias", min: -1, max: 1, step: 0.05 },
+    onChange
+  );
+  bind(
+    shapeFolders.dla,
+    morphParams,
+    "dlaOutwardBias",
+    { label: "outward bias", min: -1, max: 1, step: 0.05 },
+    onChange
+  );
+  bind(
+    shapeFolders.dla,
+    morphParams,
+    "dlaNoiseBias",
+    { label: "noise flow", min: 0, max: 1, step: 0.05 },
+    onChange
+  );
+  bind(
+    shapeFolders.dla,
+    morphParams,
+    "dlaNoiseScale",
+    { label: "noise scale", min: 0.02, max: 2, step: 0.01 },
+    onChange
+  );
+  bind(
+    shapeFolders.dla,
+    morphParams,
+    "dlaParticleRadius",
+    { label: "blob radius", min: 0.3, max: 1.4, step: 0.05 },
+    onChange
+  );
+  bind(
+    shapeFolders.dla,
+    morphParams,
+    "dlaElementShape",
+    { label: "element", options: DLA_ELEMENT_SHAPE_OPTIONS },
+    onChange
+  );
+  bind(
+    shapeFolders.dla,
+    morphParams,
+    "dlaOrientRandom",
+    { label: "orient random", min: 0, max: 1, step: 0.05 },
+    onChange
+  );
+  bind(
+    shapeFolders.dla,
+    morphParams,
+    "dlaMeshDetail",
+    { label: "mesh detail", min: 0, max: 2, step: 1 },
+    onChange
+  );
+
   const rotFolder = folder.addFolder({ title: "Rotation", expanded: true });
 
   const modelRotation = {
@@ -538,6 +691,13 @@ export async function setupMorphUI(
 
   const noiseFolder = folder.addFolder({ title: "Noise deformation", expanded: true });
   bind(noiseFolder, morphParams, "noiseEnabled", { label: "enabled" }, onChange);
+  noiseTargetInput = bind(
+    noiseFolder,
+    morphParams,
+    "noiseTarget",
+    { label: "target", options: NOISE_TARGET_OPTIONS },
+    onChange
+  );
   bind(
     noiseFolder,
     morphParams,

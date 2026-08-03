@@ -1,4 +1,11 @@
 import { LSYSTEM_PRESETS } from "./lsystem/grammars.js";
+import {
+  DLA_SEED_MODES,
+  DLA_LAUNCH_MODES,
+  DLA_CONNECTIVITY,
+  DLA_ELEMENT_SHAPES,
+  NOISE_TARGETS,
+} from "./dla/constants.js";
 
 export const MORPH_SHAPES = [
   "torus",
@@ -8,6 +15,7 @@ export const MORPH_SHAPES = [
   "gielis",
   "baschetLeaf",
   "lsystem",
+  "dla",
   "model",
 ];
 
@@ -19,6 +27,7 @@ export const SHAPE_LABELS = {
   gielis: "Gielis superformula",
   baschetLeaf: "Baschet leaf",
   lsystem: "L-system organism",
+  dla: "DLA (moss / coral)",
   model: "model",
 };
 
@@ -84,6 +93,23 @@ export const morphParams = {
   lsystemSegments: 1,
   lsystemRadialSegments: 6,
   lsystemTubularDetail: 2,
+  dlaParticleCount: 1200,
+  dlaGridSize: 64,
+  dlaSeed: 42,
+  dlaSeedMode: "point",
+  dlaLaunchMode: "sphere",
+  dlaStickiness: 1,
+  dlaMinNeighbors: 1,
+  dlaHitsRequired: 1,
+  dlaConnectivity: "full",
+  dlaUpBias: 0,
+  dlaOutwardBias: 0,
+  dlaNoiseBias: 0,
+  dlaNoiseScale: 0.15,
+  dlaParticleRadius: 0.85,
+  dlaMeshDetail: 1,
+  dlaElementShape: "sphere",
+  dlaOrientRandom: 1,
   rotationX: 0,
   rotationY: 0,
   rotationZ: 0,
@@ -112,6 +138,7 @@ export const morphParams = {
   noiseOctaves: 3,
   noiseMorphSpeed: 3,
   animateNoise: true,
+  noiseTarget: "whole",
 };
 
 export const MORPH_PARAM_KEYS = Object.keys(morphParams);
@@ -197,4 +224,50 @@ export function clampMorphParams() {
     1,
     Math.min(6, Math.round(morphParams.lsystemTubularDetail))
   );
+  if (!DLA_SEED_MODES.includes(morphParams.dlaSeedMode)) {
+    morphParams.dlaSeedMode = "point";
+  }
+  if (!DLA_LAUNCH_MODES.includes(morphParams.dlaLaunchMode)) {
+    morphParams.dlaLaunchMode = "sphere";
+  }
+  if (!DLA_CONNECTIVITY.includes(morphParams.dlaConnectivity)) {
+    morphParams.dlaConnectivity = "full";
+  }
+  morphParams.dlaParticleCount = Math.max(
+    50,
+    Math.min(8000, Math.round(morphParams.dlaParticleCount))
+  );
+  morphParams.dlaGridSize = Math.max(
+    32,
+    Math.min(128, Math.round(morphParams.dlaGridSize))
+  );
+  morphParams.dlaSeed = Math.max(0, Math.min(99999, Math.round(morphParams.dlaSeed)));
+  morphParams.dlaStickiness = Math.max(0.01, Math.min(1, morphParams.dlaStickiness));
+  morphParams.dlaMinNeighbors = Math.max(
+    1,
+    Math.min(8, Math.round(morphParams.dlaMinNeighbors))
+  );
+  morphParams.dlaHitsRequired = Math.max(
+    1,
+    Math.min(40, Math.round(morphParams.dlaHitsRequired))
+  );
+  morphParams.dlaUpBias = Math.max(-1, Math.min(1, morphParams.dlaUpBias));
+  morphParams.dlaOutwardBias = Math.max(-1, Math.min(1, morphParams.dlaOutwardBias));
+  morphParams.dlaNoiseBias = Math.max(0, Math.min(1, morphParams.dlaNoiseBias));
+  morphParams.dlaNoiseScale = Math.max(0.02, Math.min(2, morphParams.dlaNoiseScale));
+  morphParams.dlaParticleRadius = Math.max(
+    0.3,
+    Math.min(1.4, morphParams.dlaParticleRadius)
+  );
+  morphParams.dlaMeshDetail = Math.max(
+    0,
+    Math.min(2, Math.round(morphParams.dlaMeshDetail))
+  );
+  if (!DLA_ELEMENT_SHAPES.includes(morphParams.dlaElementShape)) {
+    morphParams.dlaElementShape = "sphere";
+  }
+  morphParams.dlaOrientRandom = Math.max(0, Math.min(1, morphParams.dlaOrientRandom));
+  if (!NOISE_TARGETS.includes(morphParams.noiseTarget)) {
+    morphParams.noiseTarget = "whole";
+  }
 }

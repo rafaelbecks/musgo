@@ -70,6 +70,23 @@ const EXPORT_PARAM_KEYS = [
   "lsystemSegments",
   "lsystemRadialSegments",
   "lsystemTubularDetail",
+  "dlaParticleCount",
+  "dlaGridSize",
+  "dlaSeed",
+  "dlaSeedMode",
+  "dlaLaunchMode",
+  "dlaStickiness",
+  "dlaMinNeighbors",
+  "dlaHitsRequired",
+  "dlaConnectivity",
+  "dlaUpBias",
+  "dlaOutwardBias",
+  "dlaNoiseBias",
+  "dlaNoiseScale",
+  "dlaParticleRadius",
+  "dlaMeshDetail",
+  "dlaElementShape",
+  "dlaOrientRandom",
   "modelFile",
   "noiseAmplitude",
   "noiseScale",
@@ -81,8 +98,18 @@ const EXPORT_PARAM_KEYS = [
   "side",
 ];
 
+/** Params that actually change mesh topology / base positions (not noise/rotation). */
+const GEOMETRY_PARAM_KEYS = EXPORT_PARAM_KEYS.filter(
+  (k) =>
+    !k.startsWith("noise") &&
+    k !== "rotationX" &&
+    k !== "rotationY" &&
+    k !== "rotationZ" &&
+    k !== "side"
+);
+
 function geometryConfigKey() {
-  return EXPORT_PARAM_KEYS.map((k) => morphParams[k]).join("|");
+  return GEOMETRY_PARAM_KEYS.map((k) => morphParams[k]).join("|");
 }
 
 function downloadBlob(blob, filename) {
@@ -317,18 +344,40 @@ export function createMorphSystem({ scene, params: viewerParams }) {
 
   async function sync() {
     await rebuildGeometry();
-    if (mesh) {
-      applyMaterialState(mesh.material);
-      mesh.visible = true;
+    if (!mesh) return;
+    mesh.visible = true;
+    applyMaterialState(mesh.material);
+    noiseMix = morphParams.noiseEnabled ? 1 : 0;
+    applyNoiseDeform(
+      mesh.geometry,
+      morphParams,
+      noiseMix,
+      morphParams.animateNoise ? elapsed : 0
+    );
+    updateTransform();
+  }
 
-      noiseMix = morphParams.noiseEnabled ? 1 : 0;
-      applyNoiseDeform(
-        mesh.geometry,
-        morphParams,
-        noiseMix,
-        morphParams.animateNoise ? elapsed : 0
-      );
+  /**
+   * Synchronous live update for the modulation render loop.
+   * Rebuilds parametric geometry immediately; models rebuild async.
+   */
+  function applyLiveState() {
+    if (morphParams.shape === "model") {
+      void rebuildGeometry();
+    } else {
+      const key = geometryConfigKey();
+      if (!mesh || builtKey !== key) {
+        const geometry = createMorphGeometry(
+          morphParams.shape,
+          morphParams.extent,
+          morphParams
+        );
+        assignGeometry(geometry);
+        builtKey = key;
+      }
     }
+    if (!mesh) return;
+    applyMaterialState(mesh.material);
     updateTransform();
   }
 
@@ -414,8 +463,12 @@ export function createMorphSystem({ scene, params: viewerParams }) {
 
   return {
     sync,
+    applyLiveState,
     update: updateNoise,
     applyTransform: updateTransform,
+    applyMaterial: () => {
+      if (mesh) applyMaterialState(mesh.material);
+    },
     dispose,
     getAnalysisMesh,
     getNoiseMix,
