@@ -8,7 +8,7 @@ import { LOGO_VIEWPORT_SCALE } from "./logoConfig.js";
 
 /**
  * MUSGO splash / home screen.
- * Space → enter editor. Drop a .organism file → enter and load it.
+ * Space / logo click → enter editor. Drop a .organism file → enter and load it.
  *
  * Fern tweaks (also on `window.MUSGO_SPLASH`):
  *   FERN_SIZE, FERN_MODULATION_HZ — see fernConfig.js
@@ -152,8 +152,14 @@ export function createSplashScreen({
     enter(file);
   }
 
+  function onLogoClick(ev) {
+    ev.preventDefault();
+    enter(null);
+  }
+
   function teardownListeners() {
     window.removeEventListener("keydown", onKeyDown);
+    logoCanvas.removeEventListener("click", onLogoClick);
     root.removeEventListener("dragenter", onDragEnter);
     root.removeEventListener("dragleave", onDragLeave);
     root.removeEventListener("dragover", onDragOver);
@@ -170,6 +176,7 @@ export function createSplashScreen({
   }
 
   window.addEventListener("keydown", onKeyDown);
+  logoCanvas.addEventListener("click", onLogoClick);
   root.addEventListener("dragenter", onDragEnter);
   root.addEventListener("dragleave", onDragLeave);
   root.addEventListener("dragover", onDragOver);

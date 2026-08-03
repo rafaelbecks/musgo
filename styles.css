@@ -661,14 +661,14 @@ textarea,
 
 /* —— Splash / home (MUSGO) —— */
 body.is-splash {
-  background: #000;
+  background: var(--bg);
 }
 
 #splash {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: #000;
+  background: var(--bg);
   overflow: hidden;
 }
 
@@ -709,6 +709,7 @@ body.is-splash {
 #splash-logo {
   display: block;
   max-width: 100%;
+  pointer-events: auto;
 }
 
 #splash-subtitle {
@@ -716,7 +717,7 @@ body.is-splash {
   color: #fff;
   margin-top: 10px;
   font-family: "Analo Grotesk", "IBM Plex Sans", sans-serif;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 400;
   letter-spacing: 1px;
   text-align: center;
