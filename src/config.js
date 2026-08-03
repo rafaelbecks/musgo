@@ -94,7 +94,7 @@ export const params = {
   wireframe: true,
   roughness: 0.45,
   metalness: 0.08,
-  autoAnalyze: true,
+  autoAnalyze: false,
   chamberFocusDistance: 1.15,
   pitchMultiplier: 1,
   playMode: "drone",

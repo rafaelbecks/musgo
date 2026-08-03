@@ -1,5 +1,6 @@
 import { morphParams, MORPH_PARAM_KEYS, clampMorphParams } from "./morphParams.js";
 import { params as viewerParams } from "../config.js";
+import { modulationSystem } from "../modulation/modulationSystem.js";
 
 export const ORGANISM_TYPE = "organism";
 export const ORGANISM_VERSION = 1;
@@ -124,6 +125,7 @@ function contentFingerprint() {
     viewer: Object.fromEntries(VIEWER_KEYS.map((k) => [k, viewerParams[k]])),
     underwater: Object.fromEntries(UNDERWATER_KEYS.map((k) => [k, viewerParams[k]])),
     midi: midiHooks?.serialize?.() ?? null,
+    modulation: modulationSystem.serialize(),
   });
 }
 
@@ -137,6 +139,7 @@ export function serializeOrganism({ id = session.id ?? createOrganismId() } = {}
     morph: Object.fromEntries(MORPH_PARAM_KEYS.map((k) => [k, morphParams[k]])),
     viewer: Object.fromEntries(VIEWER_KEYS.map((k) => [k, viewerParams[k]])),
     underwater: Object.fromEntries(UNDERWATER_KEYS.map((k) => [k, viewerParams[k]])),
+    modulation: modulationSystem.serialize(),
   };
   const midi = midiHooks?.serialize?.();
   if (midi) state.midi = midi;
@@ -173,6 +176,9 @@ export function applyOrganismState(state) {
       }
     }
   }
+
+  // Always replace LFOs from file (missing block → clear)
+  modulationSystem.loadSerialized(state.modulation ?? null);
 
   if (morphParams.glassEnabled) {
     viewerParams.wireframe = false;

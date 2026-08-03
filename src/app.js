@@ -17,6 +17,8 @@ import { morphParams } from "./morphogenesis/morphParams.js";
 import { midiNoteToPitchMultiplier } from "./midi/notePitch.js";
 import { updateMidiSmoothing } from "./midi/midiCamera.js";
 import { createUnderwaterSystem } from "./underwater/underwaterSystem.js";
+import { modulationSystem } from "./modulation/modulationSystem.js";
+import { resolveModParam } from "./modulation/modulationTargets.js";
 
 export async function bootApp() {
   const loading = createLoading();
@@ -109,12 +111,24 @@ export async function bootApp() {
     morphSystem,
   });
 
-  initPanelResize({
+  const panelResize = initPanelResize({
     onResize: () => {
       sceneSystem.resize();
       acousticPanel.onResize();
       underwaterSystem.onResize();
     },
+  });
+
+  window.addEventListener("keydown", (ev) => {
+    const mod = ev.metaKey || ev.ctrlKey;
+    if (!mod || (ev.key !== "k" && ev.key !== "K")) return;
+    // Don't steal browser search when typing in fields
+    const tag = ev.target?.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || ev.target?.isContentEditable) {
+      return;
+    }
+    ev.preventDefault();
+    panelResize.toggleAcousticsPanel();
   });
 
   const externalBridge = createExternalBridge();
@@ -312,14 +326,29 @@ export async function bootApp() {
   await toolsPanel.ready;
   await toolsPanel.applyEnvironment();
   await morphSystem.sync();
-  await runAnalysis();
+  if (params.autoAnalyze) {
+    await runAnalysis();
+  }
 
   const clock = { elapsed: 0 };
+  let lastShape = morphParams.shape;
+  let wasModulating = false;
 
   function animate() {
     requestAnimationFrame(animate);
     const delta = Math.min(0.05, clock.elapsed ? (performance.now() - clock.elapsed) / 1000 : 0.016);
     clock.elapsed = performance.now();
+
+    if (morphParams.shape !== lastShape) {
+      lastShape = morphParams.shape;
+      toolsPanel.refreshModulation?.();
+    }
+
+    const restoreModulation = modulationSystem.applyToParams(
+      morphParams,
+      resolveModParam
+    );
+    const modulating = Boolean(restoreModulation);
 
     input.applyWalkMovement(delta);
     cameraFocus.update();
@@ -329,13 +358,19 @@ export async function bootApp() {
       camera: sceneSystem.camera,
       controls: sceneSystem.controls,
     });
-    if (rotated) {
+    if (rotated || modulating || wasModulating) {
       morphSystem.applyTransform();
+    }
+    if (modulating || wasModulating) {
+      morphSystem.applyLiveState();
     }
     morphSystem.update(delta);
     underwaterSystem.update(delta);
 
     sceneSystem.renderer.render(sceneSystem.scene, sceneSystem.camera);
+
+    restoreModulation?.();
+    wasModulating = modulating;
   }
 
   animate();

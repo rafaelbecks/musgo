@@ -2,6 +2,7 @@ import { Pane } from "tweakpane";
 import { params, getEnvOptions, getEnvPath, getEnvFormat, pickRandomHdrEnvironment } from "../config.js";
 import { morphParams } from "../morphogenesis/morphParams.js";
 import { setupMorphUI } from "../morphogenesis/morphUI.js";
+import { setupModulationUI } from "../modulation/modulationUI.js";
 import { createWebMidiController } from "../midi/webMidi.js";
 import { midiNoteName } from "../midi/notePitch.js";
 import { MidiCCMapper, loadMidiMapping } from "../midi/midiCCMapper.js";
@@ -40,7 +41,7 @@ export function createToolsPanel({
   const tab = pane.addTab({
     pages: [
       { title: "Morphogenesis" },
-      { title: "Acoustics & Sound" },
+      { title: "Modulation" },
       { title: "Settings" },
     ],
   });
@@ -49,6 +50,9 @@ export function createToolsPanel({
   const soundTab = tab.pages[1];
   const settingsTab = tab.pages[2];
   const viewTab = settingsTab;
+
+  const modulationUi = setupModulationUI(soundTab, { pane });
+
 
   const viewFolder = viewTab.addFolder({ title: "Viewer", expanded: true });
 
@@ -151,6 +155,7 @@ export function createToolsPanel({
       sceneSystem.scene.backgroundBlurriness = params.bgBlur;
       await onEnvironmentChange?.();
       underwaterSystem?.applyParams();
+      modulationUi.refresh();
       pane.refresh();
     },
   }).then((api) => {
@@ -299,7 +304,7 @@ export function createToolsPanel({
     .addButton({ title: "Set light from camera (L)" })
     .on("click", () => underwaterSystem?.setLightFromCamera());
 
-  const acousticFolder = soundTab.addFolder({ title: "Acoustics", expanded: true });
+  const acousticFolder = soundTab.addFolder({ title: "Acoustics", expanded: false });
   acousticFolder.addBinding(params, "autoAnalyze", { label: "auto analyze" });
   const pitchBinding = acousticFolder.addBinding(params, "pitchMultiplier", {
     label: "pitch mult",
@@ -313,7 +318,7 @@ export function createToolsPanel({
     .on("change", () => onChamberGraphChange?.());
   acousticFolder.addButton({ title: "Analyze shape" }).on("click", () => onAnalyze?.());
 
-  const playbackFolder = soundTab.addFolder({ title: "Playback", expanded: true });
+  const playbackFolder = soundTab.addFolder({ title: "Playback", expanded: false });
   playbackFolder
     .addBinding(params, "playMode", {
       label: "mode",
@@ -324,7 +329,7 @@ export function createToolsPanel({
       onPlaybackChange?.();
     });
 
-  const envControlsFolder = playbackFolder.addFolder({ title: "Envelope (trigger)", expanded: true });
+  const envControlsFolder = playbackFolder.addFolder({ title: "Envelope (trigger)", expanded: false });
   envControlsFolder.addBinding(params, "envAttack", {
     label: "attack",
     min: 0.001,
@@ -961,6 +966,7 @@ export function createToolsPanel({
     midiParams,
     ready: morphUiReady,
     refreshPitch: () => pitchBinding.refresh(),
+    refreshModulation: () => modulationUi.refresh(),
     applyEnvironment,
   };
 }

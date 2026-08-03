@@ -136,10 +136,16 @@ function setupHeightResize(handle, { onResize, isCollapsed } = {}) {
   });
 }
 
-function setupAcousticsCollapse({ onResize } = {}) {
+function setupAcousticsCollapse({ onResize, defaultCollapsed = true } = {}) {
   const panel = document.getElementById("acoustics-panel");
   const btn = document.getElementById("acoustics-collapse-btn");
-  if (!panel || !btn) return () => false;
+  if (!panel || !btn) {
+    return {
+      isCollapsed: () => false,
+      setCollapsed: () => {},
+      toggle: () => false,
+    };
+  }
 
   let collapsed = false;
   let expandedHeight = clampAcousticsHeight(
@@ -161,13 +167,13 @@ function setupAcousticsCollapse({ onResize } = {}) {
       btn.textContent = "+";
       btn.setAttribute("aria-label", "Expand acoustics panel");
       btn.setAttribute("aria-expanded", "false");
-      btn.title = "Expand";
+      btn.title = "Expand (⌘K)";
     } else {
       setPxVar("--acoustics-height", clampAcousticsHeight(expandedHeight));
       btn.textContent = "−";
       btn.setAttribute("aria-label", "Collapse acoustics panel");
       btn.setAttribute("aria-expanded", "true");
-      btn.title = "Collapse";
+      btn.title = "Collapse (⌘K)";
     }
 
     if (persist) {
@@ -188,11 +194,20 @@ function setupAcousticsCollapse({ onResize } = {}) {
   });
 
   const saved = loadSaved();
-  if (saved.acousticsCollapsed) {
+  // Morphogenesis-first: always start with the acoustics strip collapsed.
+  // Preference is still persisted when the user toggles (click or ⌘K).
+  if (defaultCollapsed || saved.acousticsCollapsed) {
     applyCollapsed(true, { persist: false });
   }
 
-  return () => collapsed;
+  return {
+    isCollapsed: () => collapsed,
+    setCollapsed: (value, opts) => applyCollapsed(Boolean(value), opts),
+    toggle: () => {
+      applyCollapsed(!collapsed);
+      return collapsed;
+    },
+  };
 }
 
 export function initPanelResize({ onResize } = {}) {
@@ -207,15 +222,29 @@ export function initPanelResize({ onResize } = {}) {
   const toolsHandle = document.getElementById("tools-resize-handle");
   const acousticsHandle = document.getElementById("acoustics-resize-handle");
 
-  const isCollapsed = setupAcousticsCollapse({ onResize });
+  const acousticsCollapse = setupAcousticsCollapse({
+    onResize,
+    defaultCollapsed: true,
+  });
 
   if (toolsHandle) setupWidthResize(toolsHandle, { onResize });
-  if (acousticsHandle) setupHeightResize(acousticsHandle, { onResize, isCollapsed });
+  if (acousticsHandle) {
+    setupHeightResize(acousticsHandle, {
+      onResize,
+      isCollapsed: acousticsCollapse.isCollapsed,
+    });
+  }
 
   window.addEventListener("resize", () => {
-    if (!isCollapsed()) {
+    if (!acousticsCollapse.isCollapsed()) {
       setPxVar("--acoustics-height", clampAcousticsHeight(readAcousticsHeight()));
     }
     onResize?.();
   });
+
+  return {
+    toggleAcousticsPanel: () => acousticsCollapse.toggle(),
+    setAcousticsCollapsed: (value) => acousticsCollapse.setCollapsed(value),
+    isAcousticsCollapsed: () => acousticsCollapse.isCollapsed(),
+  };
 }
