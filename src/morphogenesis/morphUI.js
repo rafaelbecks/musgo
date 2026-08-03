@@ -12,6 +12,7 @@ import { loadModelCatalog, modelsToOptions } from "./modelCatalog.js";
 import {
   saveOrganism,
   pickOrganismFile,
+  readOrganismFile,
   adoptLoadedOrganism,
   markOrganismClean,
   syncOrganismDirty,
@@ -765,20 +766,24 @@ export async function setupMorphUI(
       window.alert(err?.message || "Failed to save organism file.");
     }
   });
+  async function applyLoadedOrganism({ state, file, fileHandle = null }) {
+    adoptLoadedOrganism({ state, file, fileHandle });
+    syncShapeFolders();
+    syncGlassFolder();
+    syncRotationBinding();
+    refreshPane?.();
+    await applyOrganismMidi(state);
+    await onOrganismLoaded?.(state);
+    onChange?.();
+    // Re-baseline after async env/pane side-effects so we don't stay dirty
+    markOrganismClean();
+    console.info(`[organism] loaded ${file?.name ?? state.id}`);
+  }
+
   organismFolder.addButton({ title: "Load .organism" }).on("click", async () => {
     try {
       const { state, file, fileHandle } = await pickOrganismFile();
-      adoptLoadedOrganism({ state, file, fileHandle });
-      syncShapeFolders();
-      syncGlassFolder();
-      syncRotationBinding();
-      refreshPane?.();
-      await applyOrganismMidi(state);
-      await onOrganismLoaded?.(state);
-      onChange?.();
-      // Re-baseline after async env/pane side-effects so we don't stay dirty
-      markOrganismClean();
-      console.info(`[organism] loaded ${file.name}`);
+      await applyLoadedOrganism({ state, file, fileHandle });
     } catch (err) {
       if (err?.message === "File picker cancelled." || err?.message === "No file selected.") {
         return;
@@ -801,6 +806,11 @@ export async function setupMorphUI(
       syncGlassFolder();
       syncRotationBinding();
       syncOrganismDirty();
+    },
+    async loadOrganismFile(file) {
+      const state = await readOrganismFile(file);
+      await applyLoadedOrganism({ state, file, fileHandle: null });
+      return state;
     },
   };
 }

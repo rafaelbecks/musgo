@@ -20,7 +20,7 @@ import { createUnderwaterSystem } from "./underwater/underwaterSystem.js";
 import { modulationSystem } from "./modulation/modulationSystem.js";
 import { resolveModParam } from "./modulation/modulationTargets.js";
 
-export async function bootApp() {
+export async function bootApp({ pendingOrganismFile = null } = {}) {
   const loading = createLoading();
   const analysisLoading = createAnalysisLoading();
   const analysisLoadingEl = document.getElementById("analysis-loading");
@@ -325,6 +325,16 @@ export async function bootApp() {
 
   await toolsPanel.ready;
   await toolsPanel.applyEnvironment();
+
+  if (pendingOrganismFile) {
+    try {
+      await toolsPanel.loadOrganismFile(pendingOrganismFile);
+    } catch (err) {
+      console.error("[organism] splash load failed", err);
+      window.alert(err?.message || "Failed to load organism file.");
+    }
+  }
+
   await morphSystem.sync();
   if (params.autoAnalyze) {
     await runAnalysis();

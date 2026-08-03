@@ -1,14 +1,14 @@
 {
   "id": "/",
-  "name": "Resonant Organisms",
-  "short_name": "Resonant",
-  "description": "Morphogenesis playground — shape acoustic chamber networks",
+  "name": "MUSGO",
+  "short_name": "MUSGO",
+  "description": "Morfogénesis de Unidades y Sistemas Generativos Orgánicos",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0a0a0c",
-  "theme_color": "#0a0a0c",
+  "background_color": "#000000",
+  "theme_color": "#000000",
   "icons": [
     {
       "src": "icons/resonant192.png",

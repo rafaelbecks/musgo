@@ -1,4 +1,5 @@
 import { bootApp } from "./app.js";
+import { createSplashScreen } from "./splash/splashScreen.js";
 
 const isLocalDev =
   location.hostname === "localhost" ||
@@ -44,6 +45,14 @@ if (isLocalDev) {
   registerServiceWorker();
 }
 
-bootApp().catch((err) => {
-  console.error("Failed to boot Resonant Organisms:", err);
+createSplashScreen({
+  onEnter: async ({ file } = {}) => {
+    try {
+      await bootApp({ pendingOrganismFile: file ?? null });
+      document.getElementById("app")?.removeAttribute("hidden");
+    } catch (err) {
+      console.error("Failed to boot MUSGO:", err);
+      document.getElementById("app")?.removeAttribute("hidden");
+    }
+  },
 });

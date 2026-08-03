@@ -320,13 +320,23 @@ export async function saveOrganism({ forcePicker = false } = {}) {
   return { ...downloadOrganism(state), method: "download" };
 }
 
+/** Parse a File / Blob as an organism document. */
+export async function readOrganismFile(file) {
+  if (!file) throw new Error("No file selected.");
+  const text = await file.text();
+  const state = JSON.parse(text);
+  if (!state || state.type !== ORGANISM_TYPE) {
+    throw new Error('Invalid organism file (expected type "organism").');
+  }
+  return state;
+}
+
 export async function pickOrganismFile() {
   if (supportsFileSystemAccess()) {
     try {
       const [handle] = await window.showOpenFilePicker(ORGANISM_OPEN_OPTS);
       const file = await handle.getFile();
-      const text = await file.text();
-      const state = JSON.parse(text);
+      const state = await readOrganismFile(file);
       return { state, file, fileHandle: handle };
     } catch (err) {
       if (err?.name === "AbortError") {
@@ -359,8 +369,7 @@ function pickOrganismFileInput() {
         return;
       }
       try {
-        const text = await file.text();
-        const state = JSON.parse(text);
+        const state = await readOrganismFile(file);
         resolve({ state, file, fileHandle: null });
       } catch (err) {
         reject(err);

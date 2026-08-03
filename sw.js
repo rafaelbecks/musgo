@@ -1,5 +1,5 @@
 /** Offline fallback only — always prefer the network when online. */
-const CACHE = "resonant-organisms-v2";
+const CACHE = "musgo-v1";
 
 const OFFLINE_SHELL = [
   "./",

@@ -36,7 +36,7 @@ export function createToolsPanel({
   onChamberGraphChange,
   underwaterSystem,
 }) {
-  const pane = new Pane({ title: "Resonant Organisms", container });
+  const pane = new Pane({ title: "MUSGO", container });
 
   const tab = pane.addTab({
     pages: [
@@ -968,5 +968,9 @@ export function createToolsPanel({
     refreshPitch: () => pitchBinding.refresh(),
     refreshModulation: () => modulationUi.refresh(),
     applyEnvironment,
+    async loadOrganismFile(file) {
+      await morphUiReady;
+      return morphUi.loadOrganismFile(file);
+    },
   };
 }
