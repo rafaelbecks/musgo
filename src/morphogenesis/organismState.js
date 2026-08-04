@@ -36,7 +36,7 @@ export const UNDERWATER_KEYS = [
   "uwLightFollow",
 ];
 
-const DEFAULT_SPECIMEN_LABEL = "morphogenesis · acoustic organism";
+const DEFAULT_SPECIMEN_LABEL = "specimen: no name";
 
 /** @type {{ serialize: () => object | null, apply: (midi: object) => void | Promise<void> } | null} */
 let midiHooks = null;
@@ -207,7 +207,7 @@ function refreshSpecimenLabel() {
   }
 
   const star = session.dirty ? "*" : "";
-  el.textContent = `morphogenesis · ${session.filename}${star}`;
+  el.textContent = `specimen: ${session.filename}${star}`;
   el.title = session.dirty
     ? `${session.filename} (unsaved changes — ⌘S to save)`
     : session.filename;

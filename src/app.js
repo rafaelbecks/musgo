@@ -16,6 +16,8 @@ import { createCameraFocus } from "./scene/cameraFocus.js";
 import { morphParams } from "./morphogenesis/morphParams.js";
 import { midiNoteToPitchMultiplier } from "./midi/notePitch.js";
 import { updateMidiSmoothing } from "./midi/midiCamera.js";
+import { createHelpModal } from "./ui/helpModal.js";
+import { createExamplesModal } from "./ui/examplesModal.js";
 import { createUnderwaterSystem } from "./underwater/underwaterSystem.js";
 import { modulationSystem } from "./modulation/modulationSystem.js";
 import { resolveModParam } from "./modulation/modulationTargets.js";
@@ -25,6 +27,7 @@ export async function bootApp({ pendingOrganismFile = null } = {}) {
   const analysisLoading = createAnalysisLoading();
   const analysisLoadingEl = document.getElementById("analysis-loading");
   const mount = document.getElementById("viewer-mount");
+  createHelpModal();
 
   const sceneSystem = createSceneSystem({ mount, loading });
   const input = createInputSystem(sceneSystem.camera, sceneSystem.controls);
@@ -122,6 +125,8 @@ export async function bootApp({ pendingOrganismFile = null } = {}) {
   window.addEventListener("keydown", (ev) => {
     const mod = ev.metaKey || ev.ctrlKey;
     if (!mod || (ev.key !== "k" && ev.key !== "K")) return;
+    // Acoustics panel on hold — no toggle target
+    if (!document.getElementById("acoustics-panel")) return;
     // Don't steal browser search when typing in fields
     const tag = ev.target?.tagName;
     if (tag === "INPUT" || tag === "TEXTAREA" || ev.target?.isContentEditable) {
@@ -325,6 +330,20 @@ export async function bootApp({ pendingOrganismFile = null } = {}) {
 
   await toolsPanel.ready;
   await toolsPanel.applyEnvironment();
+
+  createExamplesModal({
+    onSelectExample: async (file) => {
+      try {
+        await toolsPanel.loadOrganismFile(file);
+        await morphSystem.sync();
+        scheduleAnalysis();
+        underwaterSystem?.refreshFromMorph();
+      } catch (err) {
+        console.error("[examples] load failed", err);
+        window.alert(err?.message || "Failed to load example.");
+      }
+    },
+  });
 
   if (pendingOrganismFile) {
     try {

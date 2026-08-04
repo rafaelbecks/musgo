@@ -38,21 +38,22 @@
 
 <div id="app" hidden>
   <main id="viewer-panel">
-    <header class="panel-header">
+    <header class="panel-header panel-header--viewer">
       <h1>MUSGO</h1>
-      <p class="subtitle" id="specimen-label">morphogenesis · acoustic organism</p>
+      <p class="subtitle" id="specimen-label"></p>
     </header>
     <div id="viewer-mount"></div>
   </main>
 
   <aside id="tools-panel">
     <div id="tools-resize-handle" class="panel-resize-handle panel-resize-handle--vertical" role="separator" aria-orientation="vertical" aria-label="Resize tools panel"></div>
-    <header class="panel-header">
+    <header class="panel-header panel-header--tools">
       <h2>Tools</h2>
     </header>
     <div id="tools-scroll"></div>
   </aside>
 
+  <!-- Acoustics on hold — bottom panel disabled for now
   <section id="acoustics-panel">
     <div id="acoustics-resize-handle" class="panel-resize-handle panel-resize-handle--horizontal" role="separator" aria-orientation="horizontal" aria-label="Resize acoustics panel"></div>
     <header class="panel-header panel-header--acoustics">
@@ -75,6 +76,7 @@
       </aside>
     </div>
   </section>
+  -->
 </div>
 
 <section id="loading" hidden aria-live="polite">
@@ -87,5 +89,7 @@
 </section>
 
 <script type="module" src="./src/main.js"></script>
+<script type="module" src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"></script>
+<script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
 </body>
 </html>

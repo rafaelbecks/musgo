@@ -14,6 +14,15 @@ export function createChamberNetworkView(container, { onSelect, onMixChange } = 
   let model = null;
   let mixUiState = null;
 
+  if (!container) {
+    return {
+      render() {},
+      setSelected() {},
+      getSelected: () => null,
+      dispose() {},
+    };
+  }
+
   container.innerHTML = `
     <div class="patch-network__empty">Analyze a shape to see the chamber network</div>
     <div class="patch-network__stage" hidden>

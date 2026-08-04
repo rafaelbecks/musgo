@@ -1,0 +1,144 @@
+{
+  "type": "organism",
+  "version": 1,
+  "id": "00399414",
+  "createdAt": "2026-07-27T18:29:49.986Z",
+  "morph": {
+    "shape": "gielis",
+    "modelFile": "cosos/pututu",
+    "extent": 3,
+    "shapeSegments": 128,
+    "envelopeRadius": 1,
+    "torusTube": 0.35,
+    "torusKnotRadius": 1,
+    "torusKnotTube": 0.35,
+    "torusKnotTubularSegments": 512,
+    "torusKnotRadialSegments": 64,
+    "torusKnotP": 2,
+    "torusKnotQ": 3,
+    "minimalVSegments": 64,
+    "chenGackstatterRMin": 0.22,
+    "chenGackstatterRMax": 0.78,
+    "chenGackstatterStretchZ": 1,
+    "lopezRosSpan": 1.2,
+    "lopezRosDeform": 0.35,
+    "lopezRosTwist": 0,
+    "lopezRosMode": "catenoid",
+    "lopezRosStackCount": 3,
+    "lopezRosStackSpacing": 1,
+    "gielisA1": 2,
+    "gielisB1": 0.49999999999999994,
+    "gielisM1": 1.9999999999999998,
+    "gielisN11": 1.5,
+    "gielisN12": 2.2,
+    "gielisN13": 0.9,
+    "gielisFamily1": "superspiral",
+    "gielisA2": 2.65,
+    "gielisB2": 0.09999999999999995,
+    "gielisM2": 9.1,
+    "gielisN21": -14.100000000000001,
+    "gielisN22": -11.500000000000002,
+    "gielisN23": 1,
+    "gielisFamily2": "superrose",
+    "gielisPhiMode": "latitude",
+    "gielisVSegments": 64,
+    "leafRadius": 1,
+    "leafWidthScale": 0.55,
+    "leafHeightScale": 1.85,
+    "leafExponent": 0.85,
+    "leafAsymmetry": 0,
+    "leafTopPinch": 0.08,
+    "leafBottomPinch": 0.12,
+    "leafSkew": 0,
+    "leafResolution": 64,
+    "leafFoldDepth": 0.28,
+    "leafFoldPower": 1.15,
+    "leafBulge": 0.58,
+    "rotationX": 0,
+    "rotationY": 0,
+    "rotationZ": 0,
+    "side": "double",
+    "color": "#7dbeff",
+    "glassEnabled": true,
+    "glassMetalness": 0,
+    "glassRoughness": 0.2,
+    "glassTransmission": 1,
+    "glassIor": 1.5,
+    "glassThickness": 2.5,
+    "glassEnvMapIntensity": 1.5,
+    "glassClearcoat": 1,
+    "glassClearcoatRoughness": 0.1,
+    "glassNormalScale": 3.6999999999999997,
+    "glassClearcoatNormalScale": 3.8000000000000003,
+    "glassNormalRepeat": 4,
+    "glassTransparent": true,
+    "noiseEnabled": true,
+    "noiseAmplitude": 0.28,
+    "noiseScale": 1.2,
+    "noiseScaleModEnabled": true,
+    "noiseScaleModRate": 0.12,
+    "noiseScaleModAmount": 0.5,
+    "noiseSeed": 42,
+    "noiseOctaves": 3,
+    "noiseMorphSpeed": 3,
+    "animateNoise": true
+  },
+  "viewer": {
+    "wireframe": false,
+    "roughness": 0.45,
+    "metalness": 0.08,
+    "environment": "exr_6",
+    "exposure": 1,
+    "bgBlur": 0.15,
+    "lightIntensity": 1.4,
+    "ambient": 0.6
+  },
+  "midi": {
+    "version": 1,
+    "webMidiEnabled": false,
+    "deviceName": "KL Essential 49 mk3 MIDI",
+    "mappingEnabled": true,
+    "showLegend": true,
+    "xyzMode": "orbit",
+    "preset": "Arturia KeyLab Essential 49 mk3",
+    "zoom": {
+      "minDistance": 0.15,
+      "maxDistance": 120
+    },
+    "smoothing": {
+      "rotationLambda": 15.5,
+      "zoomLambda": 12,
+      "orbitLambda": 26.5
+    },
+    "mapping": {
+      "enabled": true,
+      "device": {
+        "name": "KL Essential 49 mk3 MIDI",
+        "id": null
+      },
+      "sectionSelection": {
+        "shape": 44,
+        "noise": 45,
+        "texture": 46
+      },
+      "xyzModeToggle": {
+        "cc": 47
+      },
+      "shapeSelection": {
+        "cc": 96
+      },
+      "sectionParameters": {
+        "start": 97,
+        "max": 115
+      },
+      "camera": {
+        "110": "zoom"
+      },
+      "rotation": {
+        "111": "x",
+        "112": "y",
+        "113": "z"
+      }
+    }
+  }
+}

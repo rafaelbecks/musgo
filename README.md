@@ -8,6 +8,8 @@ Playground for **generative organisms**: procedural morphogenesis, material text
 
 Open the app and click or press **space** to enter the editor, or drop a `.organism` file to load it. Deform with noise, dress with glass/physical materials and HDR/EXR environments, and keep iterating with load / save.
 
+**Live demo:** [musgo.luminode.studio](http://musgo.luminode.studio/)
+
 | | |
 |:---:|:---:|
 | <img src="./screenshots/gielis-anemona.png" alt="Gielis superformula anemone" width="100%" /> | <img src="./screenshots/lsystem-anthropod.png" alt="L-system anthropod" width="100%" /> |
