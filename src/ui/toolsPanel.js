@@ -1,5 +1,12 @@
 import { Pane } from "tweakpane";
-import { params, getEnvOptions, getEnvPath, getEnvFormat, pickRandomHdrEnvironment } from "../config.js";
+import {
+  params,
+  ENV_CATEGORIES,
+  getEnvOptions,
+  getEnvPath,
+  getEnvFormat,
+  pickRandomHdrEnvironment,
+} from "../config.js";
 import { morphParams } from "../morphogenesis/morphParams.js";
 import { setupMorphUI } from "../morphogenesis/morphUI.js";
 import { setupModulationUI } from "../modulation/modulationUI.js";
@@ -148,7 +155,8 @@ export function createToolsPanel({
     refreshPane: () => pane.refresh(),
     onOrganismLoaded: async () => {
       wireframeBinding.refresh();
-      envBinding?.refresh();
+      // Rebuild so the loaded env appears even if outside the active category filter
+      rebuildEnvBinding();
       sceneSystem.renderer.toneMappingExposure = params.exposure;
       sceneSystem.light.intensity = params.lightIntensity;
       sceneSystem.ambient.intensity = params.ambient;
@@ -163,17 +171,36 @@ export function createToolsPanel({
     return api;
   });
   const envFolder = viewTab.addFolder({ title: "Environment", expanded: true });
-  envBinding = envFolder.addBinding(params, "environment", {
-    label: "HDR",
-    options: getEnvOptions(),
-  });
-  envBinding.on("change", () => {
+  const onEnvChange = () => {
     if (getEnvFormat(params.environment) === "exr") {
       params.bgBlur = 0.15;
       bgBlurBinding.refresh();
     }
     onEnvironmentChange?.();
+  };
+  function rebuildEnvBinding() {
+    const index = envBinding?.index ?? 1;
+    envBinding?.dispose();
+    envBinding = envFolder.addBinding(params, "environment", {
+      label: "HDR",
+      options: getEnvOptions(params.envCategory, params.environment),
+      index,
+    });
+    envBinding.on("change", onEnvChange);
+  }
+  envFolder
+    .addBinding(params, "envCategory", {
+      label: "category",
+      options: ENV_CATEGORIES,
+    })
+    .on("change", () => {
+      rebuildEnvBinding();
+    });
+  envBinding = envFolder.addBinding(params, "environment", {
+    label: "HDR",
+    options: getEnvOptions(params.envCategory, params.environment),
   });
+  envBinding.on("change", onEnvChange);
   const bgBlurBinding = envFolder
     .addBinding(params, "bgBlur", {
       label: "bg blur",
