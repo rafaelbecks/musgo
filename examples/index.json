@@ -4,7 +4,7 @@
   "modulated-catenoid.organism",
   "modulation.organism",
   "spec-anemona.organism",
-  "spec-anemona2.organism",
+  "spec-anemona-modulada.organism",
   "spec-antropodo.organism",
   "spec-arbustito.organism",
   "spec-estructura.organism",
@@ -13,5 +13,6 @@
   "spec-flor-vidrioorganism.organism",
   "spec-hoja-metal.organism",
   "spec-insecto.organism",
-  "spec-mariposa-cristal.organism"
+  "spec-mariposa-cristal.organism",
+  "verdemari.organism"
 ]
