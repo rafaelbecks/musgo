@@ -1,5 +1,10 @@
-import { morphParams, MORPH_PARAM_KEYS, clampMorphParams } from "./morphParams.js";
-import { params as viewerParams } from "../config.js";
+import {
+  morphParams,
+  MORPH_PARAM_KEYS,
+  DEFAULT_MORPH_PARAMS,
+  clampMorphParams,
+} from "./morphParams.js";
+import { params as viewerParams, ORGANISM_PARAM_DEFAULTS } from "../config.js";
 import { modulationSystem } from "../modulation/modulationSystem.js";
 
 export const ORGANISM_TYPE = "organism";
@@ -38,7 +43,11 @@ export const UNDERWATER_KEYS = [
 
 const DEFAULT_SPECIMEN_LABEL = "specimen: no name";
 
-/** @type {{ serialize: () => object | null, apply: (midi: object) => void | Promise<void> } | null} */
+/** @type {{
+ *   serialize: () => object | null,
+ *   apply: (midi: object) => void | Promise<void>,
+ *   reset?: () => void | Promise<void>,
+ * } | null} */
 let midiHooks = null;
 
 /**
@@ -47,6 +56,23 @@ let midiHooks = null;
  */
 export function setOrganismMidiHooks(hooks) {
   midiHooks = hooks;
+}
+
+/** Restore morph / viewer / underwater to factory defaults (before file merge). */
+function resetOrganismParamsToDefaults() {
+  for (const key of MORPH_PARAM_KEYS) {
+    morphParams[key] = DEFAULT_MORPH_PARAMS[key];
+  }
+  for (const key of VIEWER_KEYS) {
+    if (key in ORGANISM_PARAM_DEFAULTS) {
+      viewerParams[key] = ORGANISM_PARAM_DEFAULTS[key];
+    }
+  }
+  for (const key of UNDERWATER_KEYS) {
+    if (key in ORGANISM_PARAM_DEFAULTS) {
+      viewerParams[key] = ORGANISM_PARAM_DEFAULTS[key];
+    }
+  }
 }
 const ORGANISM_OPEN_OPTS = {
   multiple: false,
@@ -151,6 +177,9 @@ export function applyOrganismState(state) {
     throw new Error('Invalid organism file (expected type "organism").');
   }
 
+  // Clear previous organism first so omitted keys don't leak (e.g. underwater).
+  resetOrganismParamsToDefaults();
+
   if (state.morph && typeof state.morph === "object") {
     for (const key of MORPH_PARAM_KEYS) {
       if (state.morph[key] !== undefined) {
@@ -187,12 +216,18 @@ export function applyOrganismState(state) {
   return state.id ?? null;
 }
 
-/** Apply midi block from a loaded organism (async — device connect). */
+/** Apply midi block from a loaded organism (async — device connect). Missing → reset. */
 export async function applyOrganismMidi(state) {
+  if (!midiHooks) return false;
   const midi = state?.midi;
-  if (!midi || !midiHooks?.apply) return false;
-  await midiHooks.apply(midi);
-  return true;
+  if (midi && midiHooks.apply) {
+    await midiHooks.apply(midi);
+    return true;
+  }
+  if (midiHooks.reset) {
+    await midiHooks.reset();
+  }
+  return false;
 }
 
 function refreshSpecimenLabel() {

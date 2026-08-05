@@ -141,6 +141,9 @@ export const morphParams = {
   noiseTarget: "whole",
 };
 
+/** Frozen snapshot of factory morph defaults (for clean organism loads). */
+export const DEFAULT_MORPH_PARAMS = Object.freeze({ ...morphParams });
+
 export const MORPH_PARAM_KEYS = Object.keys(morphParams);
 
 export function clampMorphParams() {

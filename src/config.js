@@ -176,4 +176,37 @@ export const params = {
   uwLightFollow: false,
 };
 
+/** Viewer + underwater keys restored before applying a .organism file. */
+const ORGANISM_PARAM_DEFAULT_KEYS = [
+  "wireframe",
+  "roughness",
+  "metalness",
+  "environment",
+  "exposure",
+  "bgBlur",
+  "lightIntensity",
+  "ambient",
+  "uwEnabled",
+  "uwShape",
+  "uwPadding",
+  "uwSegments",
+  "uwSide",
+  "uwWaterColor",
+  "uwSunColor",
+  "uwDistortion",
+  "uwWaveSize",
+  "uwWaveSpeed",
+  "uwAlpha",
+  "uwCaustics",
+  "uwCausticStrength",
+  "uwCausticScale",
+  "uwCausticSpeed",
+  "uwLightFollow",
+];
+
+/** Frozen snapshot taken at module load (before any runtime mutation). */
+export const ORGANISM_PARAM_DEFAULTS = Object.freeze(
+  Object.fromEntries(ORGANISM_PARAM_DEFAULT_KEYS.map((k) => [k, params[k]]))
+);
+
 export const BRIDGE_DEFAULT_URL = "ws://localhost:57120";

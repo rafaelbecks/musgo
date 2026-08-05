@@ -970,9 +970,38 @@ export function createToolsPanel({
     syncOrganismDirty();
   }
 
+  async function resetMidiToDefaults() {
+    MIDI_CAMERA_ZOOM.minDistance = 0.15;
+    MIDI_CAMERA_ZOOM.maxDistance = 12;
+    MIDI_SMOOTHING.rotationLambda = 12;
+    MIDI_SMOOTHING.zoomLambda = 12;
+    MIDI_SMOOTHING.orbitLambda = 12;
+    setMidiXyzMode("model");
+    mappingUi.xyzMode = "model";
+    mappingUi.enabled = true;
+    mappingUi.showLegend = true;
+    mappingUi.preset = Object.keys(MIDI_MAPPING_PRESETS)[0];
+    xyzModeBinding?.refresh();
+    showLegendBinding?.refresh();
+    mappingEnabledBinding?.refresh();
+    await applyMappingPreset(mappingUi.preset);
+    ccMapper.setEnabled(mappingUi.enabled);
+    midiParams.enabled = false;
+    webMidi.disconnect();
+    midiParams.status = midiDevices.length
+      ? "ready · select a device"
+      : webMidi.isSupported()
+        ? "no MIDI inputs found"
+        : "WebMIDI not supported";
+    midiStatusBinding?.refresh();
+    applyLegendEnabled();
+    pane.refresh();
+  }
+
   setOrganismMidiHooks({
     serialize: serializeMidiForOrganism,
     apply: applyMidiFromOrganism,
+    reset: resetMidiToDefaults,
   });
 
   async function applyEnvironment() {
