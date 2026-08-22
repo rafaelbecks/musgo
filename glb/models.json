@@ -10,5 +10,7 @@
   "samples/torus-noise-3",
   "craneo/craneo",
   "craneo/craneo2",
-  "craneo/craneo3"
+  "craneo/craneo3",
+  "craneo/craneo-no-plate",
+  "craneo/craneo-reconstruct",
 ]

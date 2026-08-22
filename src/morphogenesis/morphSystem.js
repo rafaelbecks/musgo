@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { GLTFExporter } from "three/addons/exporters/GLTFExporter.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { morphParams } from "./morphParams.js";
 import { createMorphGeometry, getMorphSide } from "./morphGeometries.js";
 import {
@@ -131,19 +132,79 @@ function createGlbLoader() {
   return loader;
 }
 
-function extractFirstMeshGeometry(root) {
-  let source = null;
-  root.updateMatrixWorld(true);
-  root.traverse((o) => {
-    if (o.isMesh && o.geometry && !source) source = o;
-  });
-  if (!source) return null;
+function extractMaterialTextures(mat) {
+  if (!mat) return { name: "Material", map: null, normalMap: null };
+  return {
+    name: mat.name || "Material",
+    map: mat.map || null,
+    normalMap: mat.normalMap || null,
+  };
+}
 
-  const geometry = source.geometry.clone();
-  geometry.applyMatrix4(source.matrixWorld);
+function cloneModelMaterial(mat) {
+  return new THREE.MeshPhysicalMaterial({
+    name: mat.name || "Material",
+    color: mat.color?.clone?.() ?? new THREE.Color(0xffffff),
+    map: mat.map || null,
+    normalMap: mat.normalMap || null,
+    roughness: mat.roughness ?? 0.5,
+    metalness: mat.metalness ?? 0,
+    transparent: mat.transparent ?? false,
+    opacity: mat.opacity ?? 1,
+    alphaMap: mat.alphaMap || null,
+    side: THREE.FrontSide,
+  });
+}
+
+function extractModelAsset(root) {
+  root.updateMatrixWorld(true);
+  const meshes = [];
+  root.traverse((o) => {
+    if (o.isMesh && o.geometry) meshes.push(o);
+  });
+  if (!meshes.length) return null;
+
+  if (meshes.length === 1) {
+    const source = meshes[0];
+    const geometry = source.geometry.clone();
+    geometry.applyMatrix4(source.matrixWorld);
+    if (!geometry.attributes.normal) geometry.computeVertexNormals();
+    geometry.computeBoundingBox();
+
+    const sourceMaterials = Array.isArray(source.material)
+      ? source.material
+      : [source.material];
+    const materials = sourceMaterials.map((mat) => cloneModelMaterial(mat));
+    return {
+      geometry,
+      materials,
+      textureSlots: materials.map(extractMaterialTextures),
+    };
+  }
+
+  const geometries = [];
+  const materials = [];
+  for (const source of meshes) {
+    const geometry = source.geometry.clone();
+    geometry.applyMatrix4(source.matrixWorld);
+    geometries.push(geometry);
+    const sourceMaterials = Array.isArray(source.material)
+      ? source.material
+      : [source.material];
+    for (const mat of sourceMaterials) {
+      materials.push(cloneModelMaterial(mat));
+    }
+  }
+
+  const geometry = mergeGeometries(geometries, true);
+  if (!geometry) return null;
   if (!geometry.attributes.normal) geometry.computeVertexNormals();
   geometry.computeBoundingBox();
-  return geometry;
+  return {
+    geometry,
+    materials,
+    textureSlots: materials.map(extractMaterialTextures),
+  };
 }
 
 function fitModelGeometry(geometry, extent, envelopeRadius) {
@@ -191,7 +252,9 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
   let elapsed = 0;
   let loadId = 0;
   const glbLoader = createGlbLoader();
-  const geometryCache = new Map();
+  const modelAssetCache = new Map();
+  let activeModelTextureSlots = null;
+  let activeModelUsesMultiMaterial = false;
   const normalMapTexture = new THREE.TextureLoader().load(
     "./textures/glass-normal.jpg"
   );
@@ -279,8 +342,31 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
 
   const _surfaceTint = new THREE.Color();
 
+  function disposeMeshMaterials(target) {
+    if (!target?.material) return;
+    if (Array.isArray(target.material)) {
+      for (const mat of target.material) mat.dispose();
+    } else {
+      target.material.dispose();
+    }
+  }
+
   function applyMaterialState(material) {
+    if (Array.isArray(material)) {
+      for (let i = 0; i < material.length; i++) {
+        applyMaterialStateSingle(material[i], activeModelTextureSlots?.[i] ?? null);
+      }
+      return;
+    }
+    const slot =
+      activeModelTextureSlots?.[0] ??
+      (material.map || material.normalMap ? extractMaterialTextures(material) : null);
+    applyMaterialStateSingle(material, slot);
+  }
+
+  function applyMaterialStateSingle(material, modelSlot) {
     const glass = morphParams.glassEnabled;
+    const isModel = morphParams.shape === "model";
     const hasCustom = morphParams.customTextureEnabled && customTexture;
     const role = morphParams.customTextureRole;
     const roleIsColor =
@@ -290,28 +376,44 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
     const useCustomColor =
       hasCustom && morphParams.customTextureIntensity > 0 && roleIsColor;
     const useCustomNormal = hasCustom && roleIsNormal;
-    const colorMix = useCustomColor ? morphParams.customTextureIntensity : 0;
+    const useModelColor =
+      isModel &&
+      morphParams.modelUseOriginalTexture &&
+      modelSlot?.map &&
+      morphParams.modelTextureIntensity > 0 &&
+      !useCustomColor;
+    const useModelNormal =
+      isModel &&
+      morphParams.modelUseOriginalTexture &&
+      modelSlot?.normalMap &&
+      !useCustomNormal;
+    const surfaceMix = useCustomColor
+      ? morphParams.customTextureIntensity
+      : useModelColor
+        ? morphParams.modelTextureIntensity
+        : 0;
+    const hasSurfaceMap = useCustomColor || useModelColor;
 
-    if ((glass || hasCustom) && viewerParams.wireframe) {
+    if ((glass || hasCustom || useModelColor) && viewerParams.wireframe) {
       viewerParams.wireframe = false;
       onViewerChange?.();
     }
 
     material.side = getMorphSide(morphParams.side);
-    material.wireframe = hasCustom || glass ? false : viewerParams.wireframe;
+    material.wireframe = hasSurfaceMap || hasCustom || glass ? false : viewerParams.wireframe;
 
     _surfaceTint.set(morphParams.color);
-    _surfaceTint.lerp(new THREE.Color(0xffffff), colorMix);
+    _surfaceTint.lerp(new THREE.Color(0xffffff), surfaceMix);
     material.color.copy(_surfaceTint);
 
     if (glass) {
       material.metalness = morphParams.glassMetalness;
       material.roughness = morphParams.glassRoughness;
-      material.transmission = useCustomColor
+      material.transmission = hasSurfaceMap
         ? THREE.MathUtils.lerp(
             morphParams.glassTransmission,
             Math.min(morphParams.glassTransmission, 0.15),
-            colorMix
+            surfaceMix
           )
         : morphParams.glassTransmission;
       material.ior = morphParams.glassIor;
@@ -320,13 +422,17 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
       material.clearcoat = morphParams.glassClearcoat;
       material.clearcoatRoughness = morphParams.glassClearcoatRoughness;
       material.transparent = morphParams.glassTransparent;
-      const normalTex = useCustomNormal ? customTexture : normalMapTexture;
+      const normalTex = useCustomNormal
+        ? customTexture
+        : useModelNormal
+          ? modelSlot.normalMap
+          : normalMapTexture;
       if (useCustomNormal) {
         normalTex.repeat.set(
           morphParams.customTextureRepeatU,
           morphParams.customTextureRepeatV
         );
-      } else {
+      } else if (!useModelNormal) {
         normalTex.repeat.set(
           morphParams.glassNormalRepeat,
           morphParams.glassNormalRepeat
@@ -358,6 +464,9 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
           morphParams.glassNormalScale || 1,
           morphParams.glassNormalScale || 1
         );
+      } else if (useModelNormal) {
+        material.normalMap = modelSlot.normalMap;
+        material.normalScale.set(1, 1);
       } else {
         material.normalMap = null;
         material.normalScale.set(1, 1);
@@ -366,9 +475,16 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
       material.clearcoatNormalScale.set(1, 1);
     }
 
-    material.map = useCustomColor ? customTexture : null;
     if (useCustomColor) {
+      material.map = customTexture;
       customTexture.colorSpace = THREE.SRGBColorSpace;
+    } else if (useModelColor) {
+      material.map = modelSlot.map;
+      if (modelSlot.map) {
+        modelSlot.map.colorSpace = THREE.SRGBColorSpace;
+      }
+    } else {
+      material.map = null;
     }
 
     material.needsUpdate = true;
@@ -384,14 +500,37 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
     });
   }
 
-  function assignGeometry(geometry) {
+  function assignGeometry(geometry, modelMaterials = null) {
     ensureGeometryUVs(geometry);
+    const useModelMaterials =
+      morphParams.shape === "model" &&
+      Array.isArray(modelMaterials) &&
+      modelMaterials.length > 0;
+
+    activeModelUsesMultiMaterial = useModelMaterials && modelMaterials.length > 1;
+
     if (mesh) {
+      disposeMeshMaterials(mesh);
       mesh.geometry.dispose();
       mesh.geometry = geometry;
+      if (useModelMaterials) {
+        mesh.material =
+          modelMaterials.length === 1
+            ? modelMaterials[0].clone()
+            : modelMaterials.map((mat) => mat.clone());
+      } else {
+        mesh.material = createMaterial();
+      }
       applyMaterialState(mesh.material);
     } else {
-      mesh = new THREE.Mesh(geometry, createMaterial());
+      mesh = new THREE.Mesh(
+        geometry,
+        useModelMaterials
+          ? modelMaterials.length === 1
+            ? modelMaterials[0].clone()
+            : modelMaterials.map((mat) => mat.clone())
+          : createMaterial()
+      );
       applyMaterialState(mesh.material);
       scene.add(mesh);
     }
@@ -401,35 +540,43 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
     updateTransform();
   }
 
-  function loadModelGeometry(modelFile) {
-    const cached = geometryCache.get(modelFile);
+  function loadModelAsset(modelFile) {
+    const cached = modelAssetCache.get(modelFile);
     if (cached) {
-      return Promise.resolve(
-        fitModelGeometry(
-          cached.clone(),
+      return Promise.resolve({
+        geometry: fitModelGeometry(
+          cached.geometry.clone(),
           morphParams.extent,
           morphParams.envelopeRadius
-        )
-      );
+        ),
+        materials: cached.materials.map((mat) => mat.clone()),
+        textureSlots: cached.textureSlots,
+      });
     }
 
     return new Promise((resolve, reject) => {
       glbLoader.load(
         `./glb/${modelFile}.glb`,
         (gltf) => {
-          const extracted = extractFirstMeshGeometry(gltf.scene);
-          if (!extracted) {
+          const asset = extractModelAsset(gltf.scene);
+          if (!asset) {
             reject(new Error(`No mesh in ${modelFile}.glb`));
             return;
           }
-          geometryCache.set(modelFile, extracted);
-          resolve(
-            fitModelGeometry(
-              extracted.clone(),
+          modelAssetCache.set(modelFile, {
+            geometry: asset.geometry,
+            materials: asset.materials.map((mat) => mat.clone()),
+            textureSlots: asset.textureSlots,
+          });
+          resolve({
+            geometry: fitModelGeometry(
+              asset.geometry.clone(),
               morphParams.extent,
               morphParams.envelopeRadius
-            )
-          );
+            ),
+            materials: asset.materials.map((mat) => mat.clone()),
+            textureSlots: asset.textureSlots,
+          });
         },
         undefined,
         reject
@@ -445,16 +592,22 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
       const id = ++loadId;
       const modelFile = morphParams.modelFile || "cosos/pututu";
       try {
-        const geometry = await loadModelGeometry(modelFile);
+        const { geometry, materials, textureSlots } = await loadModelAsset(modelFile);
         if (id !== loadId) return;
-        assignGeometry(geometry);
+        activeModelTextureSlots = textureSlots;
+        assignGeometry(geometry, materials);
         builtKey = key;
       } catch (err) {
         if (id !== loadId) return;
+        activeModelTextureSlots = null;
+        activeModelUsesMultiMaterial = false;
         console.error("[morph] failed to load model", modelFile, err);
       }
       return;
     }
+
+    activeModelTextureSlots = null;
+    activeModelUsesMultiMaterial = false;
 
     const geometry = createMorphGeometry(morphParams.shape, morphParams.extent, morphParams);
     assignGeometry(geometry);
@@ -475,7 +628,7 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
     if (!mesh) return;
     scene.remove(mesh);
     mesh.geometry.dispose();
-    mesh.material.dispose();
+    disposeMeshMaterials(mesh);
     mesh = null;
     builtKey = null;
   }
@@ -617,6 +770,12 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
     clearCustomTexture,
     refreshCustomTexture,
     hasCustomTexture: () => !!customTexture,
+    hasModelTexture: () =>
+      morphParams.shape === "model" &&
+      !!activeModelTextureSlots?.some((slot) => slot.map || slot.normalMap),
+    getModelTextureLabels: () =>
+      activeModelTextureSlots?.map((slot) => slot.name).filter(Boolean) ?? [],
+    usesMultiModelMaterial: () => activeModelUsesMultiMaterial,
     dispose,
     getAnalysisMesh,
     getNoiseMix,

@@ -194,7 +194,11 @@ export function createUnderwaterSystem({ sceneSystem, morphSystem }) {
     detachFromMorph();
     const mesh = morphSystem.getAnalysisMesh?.();
     if (!mesh?.material) return;
-    detachCaustics = attachCausticsToMaterial(mesh.material);
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    const detachFns = materials.map((mat) => attachCausticsToMaterial(mat));
+    detachCaustics = () => {
+      for (const fn of detachFns) fn();
+    };
   }
 
   function detachFromMorph() {
@@ -207,14 +211,18 @@ export function createUnderwaterSystem({ sceneSystem, morphSystem }) {
   function syncMorphCaustics() {
     const mesh = morphSystem.getAnalysisMesh?.();
     if (!mesh?.material || !causticAnim) return;
-    syncCausticUniforms(mesh.material, {
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    const opts = {
       map: causticAnim.texture,
       strength: params.uwCausticStrength * 0.85,
       scale: params.uwCausticScale,
       enabled: enabled && params.uwCaustics,
       offsetX: causticOffset.x,
       offsetY: causticOffset.y,
-    });
+    };
+    for (const mat of materials) {
+      syncCausticUniforms(mat, opts);
+    }
   }
 
   function setLightFromCamera() {

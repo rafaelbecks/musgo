@@ -146,8 +146,9 @@ export function createToolsPanel({
   let envBinding = null;
   let customEnvFile = null;
   let customEnvFileBinding = null;
-  const morphUiReady = setupMorphUI(morphTab, morphSystem, () => {
-    onRefresh?.();
+  const morphUiReady = setupMorphUI(morphTab, morphSystem, async () => {
+    await onRefresh?.();
+    morphUi?.refreshModelTexture?.();
   }, {
     pane,
     onGlassEnable: () => {
@@ -1254,6 +1255,10 @@ export function createToolsPanel({
     ready: morphUiReady,
     refreshPitch: () => pitchBinding.refresh(),
     refreshModulation: () => modulationUi.refresh(),
+    refreshModelTexture: async () => {
+      await morphUiReady;
+      morphUi?.refreshModelTexture?.();
+    },
     applyEnvironment,
     async loadOrganismFile(file) {
       await morphUiReady;

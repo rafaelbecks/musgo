@@ -12,6 +12,8 @@ export const FALLBACK_MODELS = [
   "craneo/craneo",
   "craneo/craneo2",
   "craneo/craneo3",
+  "craneo/craneo-no-plate",
+  "craneo/craneo-reconstruct",
 ];
 
 let cachedModels = null;

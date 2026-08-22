@@ -358,6 +358,7 @@ export async function bootApp({ pendingOrganismFile = null } = {}) {
   }
 
   await morphSystem.sync();
+  await toolsPanel.refreshModelTexture?.();
   if (params.autoAnalyze) {
     await runAnalysis();
   }

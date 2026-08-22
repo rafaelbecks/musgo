@@ -114,6 +114,7 @@ export async function setupMorphUI(
   let modelInput = null;
   let segmentsInput = null;
   let noiseTargetInput = null;
+  let syncModelTextureFolder = () => {};
 
   function syncShapeFolders() {
     const shape = morphParams.shape;
@@ -137,6 +138,7 @@ export async function setupMorphUI(
       segmentsInput.hidden = isModel || shape === "lsystem" || shape === "dla";
     }
     if (noiseTargetInput) noiseTargetInput.hidden = shape !== "dla";
+    syncModelTextureFolder?.();
   }
 
   const shapeInput = folder.addBinding(morphParams, "shape", {
@@ -152,7 +154,10 @@ export async function setupMorphUI(
     label: "model",
     options: modelOptions,
   });
-  modelInput.on("change", () => onChange?.());
+  modelInput.on("change", () => {
+    onChange?.();
+    syncModelTextureFolder?.();
+  });
 
   bind(folder, morphParams, "extent", { label: "extent", min: 0.5, max: 10, step: 0.1 }, onChange);
 
@@ -702,6 +707,65 @@ export async function setupMorphUI(
   };
   syncGlassFolder();
 
+  const modelTexFolder = textureFolder.addFolder({
+    title: "Model texture",
+    expanded: false,
+  });
+  const modelTexBindings = [];
+  const modelTexInfo = { labels: "" };
+
+  modelTexBindings.push(
+    bind(
+      modelTexFolder,
+      morphParams,
+      "modelUseOriginalTexture",
+      { label: "original texture" },
+      () => {
+        syncModelTextureFolder();
+        morphSystem.applyMaterial();
+        onChange?.();
+      }
+    )
+  );
+  modelTexBindings.push(
+    bind(
+      modelTexFolder,
+      morphParams,
+      "modelTextureIntensity",
+      { label: "surface mix", min: 0, max: 1, step: 0.01 },
+      () => {
+        morphSystem.applyMaterial();
+        onChange?.();
+      }
+    )
+  );
+  const modelTexLabelsBinding = modelTexFolder.addBinding(modelTexInfo, "labels", {
+    label: "materials",
+    readonly: true,
+  });
+  modelTexBindings.push(modelTexLabelsBinding);
+
+  syncModelTextureFolder = () => {
+    const isModel = morphParams.shape === "model";
+    const hasTexture = morphSystem.hasModelTexture();
+    const labels = morphSystem.getModelTextureLabels?.() ?? [];
+    modelTexInfo.labels =
+      labels.length > 1
+        ? `${labels.length} slots: ${labels.join(", ")}`
+        : labels[0] ?? "";
+    modelTexLabelsBinding.refresh();
+    modelTexFolder.hidden = !isModel || !hasTexture;
+    for (const binding of modelTexBindings) {
+      if (binding === modelTexBindings[0]) {
+        binding.hidden = !isModel || !hasTexture;
+      } else if (binding === modelTexLabelsBinding) {
+        binding.hidden = !isModel || !hasTexture || labels.length < 2;
+      } else {
+        binding.hidden = !isModel || !hasTexture || !morphParams.modelUseOriginalTexture;
+      }
+    }
+  };
+
   const customTexFolder = textureFolder.addFolder({
     title: "Image texture",
     expanded: false,
@@ -926,6 +990,7 @@ export async function setupMorphUI(
     syncShapeFolders();
     syncGlassFolder();
     syncCustomTexFolder();
+    syncModelTextureFolder();
     syncRotationBinding();
     refreshPane?.();
     await applyOrganismMidi(state);
@@ -960,9 +1025,11 @@ export async function setupMorphUI(
     refreshLocal() {
       syncShapeFolders();
       syncGlassFolder();
+      syncModelTextureFolder();
       syncRotationBinding();
       syncOrganismDirty();
     },
+    refreshModelTexture: () => syncModelTextureFolder(),
     async loadOrganismFile(file) {
       const state = await readOrganismFile(file);
       await applyLoadedOrganism({ state, file, fileHandle: null });

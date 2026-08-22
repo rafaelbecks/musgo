@@ -138,6 +138,8 @@ export const morphParams = {
   customTextureRotation: 0,
   customTextureWrap: "repeat",
   customTextureIntensity: 1,
+  modelUseOriginalTexture: true,
+  modelTextureIntensity: 1,
   noiseEnabled: false,
   noiseAmplitude: 0.25,
   noiseScale: 1.5,
@@ -291,6 +293,10 @@ export function clampMorphParams() {
   morphParams.customTextureIntensity = Math.max(
     0,
     Math.min(1, morphParams.customTextureIntensity)
+  );
+  morphParams.modelTextureIntensity = Math.max(
+    0,
+    Math.min(1, morphParams.modelTextureIntensity)
   );
   morphParams.customTextureRole = normalizeCustomTextureRole(morphParams.customTextureRole);
   morphParams.customTextureWrap = normalizeCustomTextureWrap(morphParams.customTextureWrap);
