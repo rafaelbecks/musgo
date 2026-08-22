@@ -20,6 +20,7 @@ import {
   getMaxShapeParamCount,
 } from "../midi/morphMidiParams.js";
 import { setOrganismMidiHooks, syncOrganismDirty } from "../morphogenesis/organismState.js";
+import { pickImageFile } from "./imageFilePicker.js";
 
 const MIDI_MAPPING_PRESETS = {
   "Arturia KeyLab Essential 49 mk3":
@@ -31,6 +32,7 @@ export function createToolsPanel({
   container,
   morphSystem,
   sceneSystem,
+  morphUiHooks,
   externalBridge,
   onAnalyze,
   onPitchChange,
@@ -112,6 +114,12 @@ export function createToolsPanel({
       }
       onRefresh?.();
     });
+  if (morphUiHooks) {
+    morphUiHooks.refreshViewer = () => {
+      wireframeBinding.refresh();
+      morphSystem.applyMaterial();
+    };
+  }
 
   viewFolder.addBinding(params, "roughness", {
     label: "roughness",
@@ -136,6 +144,8 @@ export function createToolsPanel({
 
   let morphUi = null;
   let envBinding = null;
+  let customEnvFile = null;
+  let customEnvFileBinding = null;
   const morphUiReady = setupMorphUI(morphTab, morphSystem, () => {
     onRefresh?.();
   }, {
@@ -161,6 +171,7 @@ export function createToolsPanel({
       sceneSystem.light.intensity = params.lightIntensity;
       sceneSystem.ambient.intensity = params.ambient;
       sceneSystem.scene.backgroundBlurriness = params.bgBlur;
+      syncCustomEnvFolder();
       await onEnvironmentChange?.();
       underwaterSystem?.applyParams();
       modulationUi.refresh();
@@ -172,6 +183,9 @@ export function createToolsPanel({
   });
   const envFolder = viewTab.addFolder({ title: "Environment", expanded: true });
   const onEnvChange = () => {
+    params.customEnvEnabled = false;
+    customEnvFile = null;
+    customEnvFileBinding?.refresh();
     if (getEnvFormat(params.environment) === "exr") {
       params.bgBlur = 0.15;
       bgBlurBinding.refresh();
@@ -227,6 +241,90 @@ export function createToolsPanel({
   }).on("change", (ev) => {
     sceneSystem.ambient.intensity = ev.value;
   });
+
+  const customEnvFolder = envFolder.addFolder({
+    title: "Image environment",
+    expanded: false,
+  });
+  const customEnvBindings = [];
+
+  customEnvFolder.addButton({ title: "Load image…" }).on("click", async () => {
+    try {
+      const file = await pickImageFile();
+      customEnvFile = file;
+      params.customEnvEnabled = true;
+      params.customEnvFileName = file.name || "image";
+      customEnvFileBinding?.refresh();
+      syncCustomEnvFolder();
+      await onEnvironmentChange?.();
+    } catch (err) {
+      if (err?.message !== "File picker cancelled.") {
+        console.error(err);
+      }
+    }
+  });
+
+  customEnvFolder.addButton({ title: "Clear image" }).on("click", async () => {
+    customEnvFile = null;
+    params.customEnvEnabled = false;
+    params.customEnvFileName = "";
+    customEnvFileBinding?.refresh();
+    syncCustomEnvFolder();
+    await onEnvironmentChange?.();
+  });
+
+  customEnvFileBinding = customEnvFolder.addBinding(params, "customEnvFileName", {
+    label: "file",
+    readonly: true,
+  });
+
+  customEnvBindings.push(
+    customEnvFolder
+      .addBinding(params, "customEnvRotation", {
+        label: "rotation °",
+        min: 0,
+        max: 360,
+        step: 1,
+      })
+      .on("change", () => {
+        sceneSystem.refreshCustomEnvironment();
+      })
+  );
+  customEnvBindings.push(
+    customEnvFolder
+      .addBinding(params, "customEnvIntensity", {
+        label: "intensity",
+        min: 0,
+        max: 3,
+        step: 0.05,
+      })
+      .on("change", () => {
+        sceneSystem.refreshCustomEnvironment();
+      })
+  );
+  customEnvBindings.push(
+    customEnvFolder
+      .addBinding(params, "customEnvOffset", {
+        label: "horizontal offset",
+        min: 0,
+        max: 1,
+        step: 0.01,
+      })
+      .on("change", async () => {
+        if (params.customEnvEnabled && customEnvFile) {
+          await onEnvironmentChange?.();
+        }
+      })
+  );
+
+  function syncCustomEnvFolder() {
+    const show = params.customEnvEnabled;
+    for (const binding of customEnvBindings) {
+      binding.hidden = !show;
+    }
+    customEnvFileBinding.hidden = !show;
+  }
+  syncCustomEnvFolder();
 
   const uwFolder = viewTab.addFolder({ title: "Underwater", expanded: false });
   const onUwChange = () => {
@@ -331,6 +429,15 @@ export function createToolsPanel({
     .addButton({ title: "Set light from camera (L)" })
     .on("click", () => underwaterSystem?.setLightFromCamera());
 
+  // Hidden panels: Acoustics, Playback, SuperCollider, External bridge
+  const pitchBinding = { refresh: () => {} };
+  const bridgeParams = {
+    enabled: false,
+    url: "ws://localhost:57120",
+    autoSend: false,
+  };
+
+  /*
   const acousticFolder = soundTab.addFolder({ title: "Acoustics", expanded: false });
   acousticFolder.addBinding(params, "autoAnalyze", { label: "auto analyze" });
   const pitchBinding = acousticFolder.addBinding(params, "pitchMultiplier", {
@@ -407,6 +514,7 @@ export function createToolsPanel({
     externalBridge.setUrl(ev.value);
   });
   bridgeFolder.addBinding(bridgeParams, "autoSend", { label: "auto send" });
+  */
 
   // --- Settings: WebMIDI + CC mapping ---
   const midiFolder = settingsTab.addFolder({ title: "WebMIDI", expanded: false });
@@ -1123,6 +1231,11 @@ export function createToolsPanel({
   });
 
   async function applyEnvironment() {
+    if (params.customEnvEnabled && customEnvFile) {
+      await sceneSystem.loadEnvironmentFromFile(customEnvFile);
+      sceneSystem.scene.backgroundBlurriness = params.bgBlur;
+      return;
+    }
     const path = getEnvPath(params.environment);
     if (!path) {
       sceneSystem.clearEnvironment();

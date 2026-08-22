@@ -128,6 +128,16 @@ export const morphParams = {
   glassClearcoatNormalScale: 0.2,
   glassNormalRepeat: 3,
   glassTransparent: true,
+  customTextureEnabled: false,
+  customTextureFileName: "",
+  customTextureRole: "color",
+  customTextureRepeatU: 1,
+  customTextureRepeatV: 1,
+  customTextureOffsetU: 0,
+  customTextureOffsetV: 0,
+  customTextureRotation: 0,
+  customTextureWrap: "repeat",
+  customTextureIntensity: 1,
   noiseEnabled: false,
   noiseAmplitude: 0.25,
   noiseScale: 1.5,
@@ -273,4 +283,27 @@ export function clampMorphParams() {
   if (!NOISE_TARGETS.includes(morphParams.noiseTarget)) {
     morphParams.noiseTarget = "whole";
   }
+  morphParams.customTextureRepeatU = Math.max(0.01, morphParams.customTextureRepeatU);
+  morphParams.customTextureRepeatV = Math.max(0.01, morphParams.customTextureRepeatV);
+  morphParams.customTextureOffsetU = Math.max(-1, Math.min(1, morphParams.customTextureOffsetU));
+  morphParams.customTextureOffsetV = Math.max(-1, Math.min(1, morphParams.customTextureOffsetV));
+  morphParams.customTextureRotation = ((morphParams.customTextureRotation % 360) + 360) % 360;
+  morphParams.customTextureIntensity = Math.max(
+    0,
+    Math.min(1, morphParams.customTextureIntensity)
+  );
+  morphParams.customTextureRole = normalizeCustomTextureRole(morphParams.customTextureRole);
+  morphParams.customTextureWrap = normalizeCustomTextureWrap(morphParams.customTextureWrap);
+}
+
+function normalizeCustomTextureRole(role) {
+  if (role === "color map" || role === "color") return "color";
+  if (role === "normal map" || role === "normal") return "normal";
+  if (role === "color + normal" || role === "color+normal") return "color+normal";
+  return "color";
+}
+
+function normalizeCustomTextureWrap(wrap) {
+  if (wrap === "clamp to edge" || wrap === "clamp") return "clamp";
+  return "repeat";
 }

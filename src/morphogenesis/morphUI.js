@@ -19,9 +19,21 @@ import {
   installOrganismSaveShortcut,
   applyOrganismMidi,
 } from "./organismState.js";
+import { pickImageFile } from "../ui/imageFilePicker.js";
 import * as TweakpaneRotationInputPlugin from "@0b5vr/tweakpane-plugin-rotation";
 
 const SIDE_OPTIONS = { outside: "outside", inside: "inside", double: "double" };
+
+const CUSTOM_TEXTURE_ROLE_OPTIONS = {
+  "color map": "color",
+  "normal map": "normal",
+  "color + normal": "color+normal",
+};
+
+const TEXTURE_WRAP_OPTIONS = {
+  repeat: "repeat",
+  "clamp to edge": "clamp",
+};
 
 const SHAPE_OPTIONS = Object.fromEntries(
   MORPH_SHAPES.map((id) => [SHAPE_LABELS[id] ?? id, id])
@@ -690,6 +702,149 @@ export async function setupMorphUI(
   };
   syncGlassFolder();
 
+  const customTexFolder = textureFolder.addFolder({
+    title: "Image texture",
+    expanded: false,
+  });
+  const customTexBindings = [];
+  let customTexFileBinding = null;
+
+  customTexFolder.addButton({ title: "Load image…" }).on("click", async () => {
+    try {
+      const file = await pickImageFile();
+      await morphSystem.loadCustomTexture(file);
+      morphParams.customTextureRole = "color";
+      morphSystem.refreshCustomTexture();
+      customTexFileBinding?.refresh();
+      syncCustomTexFolder();
+      refreshPane?.();
+      onChange?.();
+    } catch (err) {
+      if (err?.message !== "File picker cancelled.") {
+        console.error(err);
+      }
+    }
+  });
+
+  customTexFolder.addButton({ title: "Clear image" }).on("click", () => {
+    morphSystem.clearCustomTexture();
+    customTexFileBinding?.refresh();
+    syncCustomTexFolder();
+    refreshPane?.();
+    onChange?.();
+  });
+
+  customTexFileBinding = customTexFolder.addBinding(morphParams, "customTextureFileName", {
+    label: "file",
+    readonly: true,
+  });
+
+  customTexBindings.push(
+    bind(
+      customTexFolder,
+      morphParams,
+      "customTextureIntensity",
+      { label: "surface mix", min: 0, max: 1, step: 0.01 },
+      () => {
+        morphSystem.refreshCustomTexture();
+        onChange?.();
+      }
+    )
+  );
+  customTexBindings.push(
+    bind(
+      customTexFolder,
+      morphParams,
+      "customTextureRole",
+      { label: "role", options: CUSTOM_TEXTURE_ROLE_OPTIONS },
+      () => {
+        morphSystem.refreshCustomTexture();
+        onChange?.();
+      }
+    )
+  );
+  customTexBindings.push(
+    bind(
+      customTexFolder,
+      morphParams,
+      "customTextureRepeatU",
+      { label: "repeat U", min: 0.01, max: 32, step: 0.01 },
+      () => {
+        morphSystem.refreshCustomTexture();
+        onChange?.();
+      }
+    )
+  );
+  customTexBindings.push(
+    bind(
+      customTexFolder,
+      morphParams,
+      "customTextureRepeatV",
+      { label: "repeat V", min: 0.01, max: 32, step: 0.01 },
+      () => {
+        morphSystem.refreshCustomTexture();
+        onChange?.();
+      }
+    )
+  );
+  customTexBindings.push(
+    bind(
+      customTexFolder,
+      morphParams,
+      "customTextureOffsetU",
+      { label: "offset U", min: -1, max: 1, step: 0.01 },
+      () => {
+        morphSystem.refreshCustomTexture();
+        onChange?.();
+      }
+    )
+  );
+  customTexBindings.push(
+    bind(
+      customTexFolder,
+      morphParams,
+      "customTextureOffsetV",
+      { label: "offset V", min: -1, max: 1, step: 0.01 },
+      () => {
+        morphSystem.refreshCustomTexture();
+        onChange?.();
+      }
+    )
+  );
+  customTexBindings.push(
+    bind(
+      customTexFolder,
+      morphParams,
+      "customTextureRotation",
+      { label: "rotation °", min: 0, max: 360, step: 1 },
+      () => {
+        morphSystem.refreshCustomTexture();
+        onChange?.();
+      }
+    )
+  );
+  customTexBindings.push(
+    bind(
+      customTexFolder,
+      morphParams,
+      "customTextureWrap",
+      { label: "wrap", options: TEXTURE_WRAP_OPTIONS },
+      () => {
+        morphSystem.refreshCustomTexture();
+        onChange?.();
+      }
+    )
+  );
+
+  const syncCustomTexFolder = () => {
+    const show = morphParams.customTextureEnabled;
+    for (const binding of customTexBindings) {
+      binding.hidden = !show;
+    }
+    customTexFileBinding.hidden = !show;
+  };
+  syncCustomTexFolder();
+
   const noiseFolder = folder.addFolder({ title: "Noise deformation", expanded: true });
   bind(noiseFolder, morphParams, "noiseEnabled", { label: "enabled" }, onChange);
   noiseTargetInput = bind(
@@ -770,6 +925,7 @@ export async function setupMorphUI(
     adoptLoadedOrganism({ state, file, fileHandle });
     syncShapeFolders();
     syncGlassFolder();
+    syncCustomTexFolder();
     syncRotationBinding();
     refreshPane?.();
     await applyOrganismMidi(state);

@@ -86,16 +86,40 @@ export function createSceneSystem({ mount, loading } = {}) {
   pmrem.compileEquirectangularShader();
   const rgbeLoader = new RGBELoader();
   const exrLoader = new EXRLoader();
+  const textureLoader = new THREE.TextureLoader();
   let currentEnvMap = null;
   let currentEnvPath = null;
+  let customEnvObjectUrl = null;
   let envLoadId = 0;
 
-  function applyEnvironmentTexture(texture) {
+  function disposeCustomEnvUrl() {
+    if (customEnvObjectUrl) {
+      URL.revokeObjectURL(customEnvObjectUrl);
+      customEnvObjectUrl = null;
+    }
+  }
+
+  function applyCustomEnvTransform() {
+    const rotY = THREE.MathUtils.degToRad(params.customEnvRotation ?? 0);
+    if (scene.environmentRotation) {
+      scene.environmentRotation.set(0, rotY, 0);
+    }
+    if (scene.backgroundRotation) {
+      scene.backgroundRotation.set(0, rotY, 0);
+    }
+    scene.backgroundIntensity = params.customEnvIntensity ?? 1;
+  }
+
+  function applyEnvironmentTexture(texture, { offset = 0 } = {}) {
+    if (offset) {
+      texture.offset.x = offset;
+      texture.needsUpdate = true;
+    }
     const envMap = pmrem.fromEquirectangular(texture).texture;
     scene.environment = envMap;
     scene.background = envMap;
     scene.backgroundBlurriness = params.bgBlur;
-    scene.backgroundIntensity = 1;
+    applyCustomEnvTransform();
 
     if (currentEnvMap) currentEnvMap.dispose();
     currentEnvMap = envMap;
@@ -110,11 +134,13 @@ export function createSceneSystem({ mount, loading } = {}) {
       return Promise.resolve();
     }
 
-    if (path === currentEnvPath) {
+    if (path === currentEnvPath && !customEnvObjectUrl) {
       scene.backgroundBlurriness = params.bgBlur;
+      applyCustomEnvTransform();
       return Promise.resolve();
     }
 
+    disposeCustomEnvUrl();
     const id = ++envLoadId;
     const resolvedFormat =
       format ?? (String(path).endsWith(".exr") ? "exr" : "hdr");
@@ -148,12 +174,83 @@ export function createSceneSystem({ mount, loading } = {}) {
     });
   }
 
+  function loadEnvironmentFromFile(file, { silent = false } = {}) {
+    if (!file) {
+      clearEnvironment();
+      return Promise.resolve();
+    }
+
+    disposeCustomEnvUrl();
+    const objectUrl = URL.createObjectURL(file);
+    customEnvObjectUrl = objectUrl;
+    currentEnvPath = null;
+
+    const name = String(file.name ?? "").toLowerCase();
+    const format = name.endsWith(".exr")
+      ? "exr"
+      : name.endsWith(".hdr")
+        ? "hdr"
+        : "image";
+
+    const id = ++envLoadId;
+
+    return new Promise((resolve, reject) => {
+      if (!silent) loading?.begin("environment");
+
+      const onLoaded = (texture) => {
+        if (id !== envLoadId) {
+          if (!silent) loading?.end("environment");
+          resolve(null);
+          return;
+        }
+        if (format === "image") {
+          texture.colorSpace = THREE.SRGBColorSpace;
+        }
+        applyEnvironmentTexture(texture, { offset: params.customEnvOffset ?? 0 });
+        if (!silent) loading?.end("environment");
+        resolve(texture);
+      };
+
+      const onError = (err) => {
+        if (id === envLoadId) {
+          disposeCustomEnvUrl();
+          if (!silent) loading?.end("environment");
+          console.error(err);
+          reject(err);
+        }
+      };
+
+      if (format === "exr") {
+        exrLoader.load(objectUrl, onLoaded, undefined, onError);
+      } else if (format === "hdr") {
+        rgbeLoader.load(objectUrl, onLoaded, undefined, onError);
+      } else {
+        textureLoader.load(objectUrl, onLoaded, undefined, onError);
+      }
+    });
+  }
+
+  function refreshCustomEnvironment() {
+    if (!customEnvObjectUrl && !currentEnvPath) return;
+    if (customEnvObjectUrl) {
+      applyCustomEnvTransform();
+      scene.backgroundBlurriness = params.bgBlur;
+      return;
+    }
+    scene.backgroundBlurriness = params.bgBlur;
+    applyCustomEnvTransform();
+  }
+
   function clearEnvironment() {
     scene.environment = null;
     scene.background = new THREE.Color(0x0a0a0c);
     light.intensity = params.lightIntensity;
     ambient.intensity = params.ambient;
     currentEnvPath = null;
+    disposeCustomEnvUrl();
+    if (scene.environmentRotation) scene.environmentRotation.set(0, 0, 0);
+    if (scene.backgroundRotation) scene.backgroundRotation.set(0, 0, 0);
+    scene.backgroundIntensity = 1;
     if (currentEnvMap) {
       currentEnvMap.dispose();
       currentEnvMap = null;
@@ -180,7 +277,10 @@ export function createSceneSystem({ mount, loading } = {}) {
     light,
     ambient,
     loadEnvironment,
+    loadEnvironmentFromFile,
+    refreshCustomEnvironment,
     clearEnvironment,
+    hasCustomEnvironment: () => !!customEnvObjectUrl,
     rebuildGrid,
     rebuildAxes,
     resize,

@@ -32,9 +32,11 @@ export async function bootApp({ pendingOrganismFile = null } = {}) {
   const sceneSystem = createSceneSystem({ mount, loading });
   const input = createInputSystem(sceneSystem.camera, sceneSystem.controls);
 
+  const morphUiHooks = { refreshViewer: () => {} };
   const morphSystem = createMorphSystem({
     scene: sceneSystem.scene,
     params,
+    onViewerChange: () => morphUiHooks.refreshViewer(),
   });
 
   let analysisTimer = null;
@@ -306,6 +308,7 @@ export async function bootApp({ pendingOrganismFile = null } = {}) {
     container: document.getElementById("tools-scroll"),
     morphSystem,
     sceneSystem,
+    morphUiHooks,
     externalBridge,
     onAnalyze: () => runAnalysis(),
     onPitchChange: () => applyPitchMultiplier(),

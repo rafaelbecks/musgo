@@ -164,7 +164,27 @@ function fitModelGeometry(geometry, extent, envelopeRadius) {
   return geometry;
 }
 
-export function createMorphSystem({ scene, params: viewerParams }) {
+function ensureGeometryUVs(geometry) {
+  if (geometry.attributes.uv) return;
+
+  if (!geometry.attributes.normal) geometry.computeVertexNormals();
+  if (!geometry.boundingSphere) geometry.computeBoundingSphere();
+
+  const center = geometry.boundingSphere.center;
+  const position = geometry.attributes.position;
+  const uvs = new Float32Array(position.count * 2);
+  const p = new THREE.Vector3();
+
+  for (let i = 0; i < position.count; i++) {
+    p.fromBufferAttribute(position, i).sub(center).normalize();
+    uvs[i * 2] = 0.5 + Math.atan2(p.z, p.x) / (2 * Math.PI);
+    uvs[i * 2 + 1] = 0.5 - Math.asin(THREE.MathUtils.clamp(p.y, -1, 1)) / Math.PI;
+  }
+
+  geometry.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+}
+
+export function createMorphSystem({ scene, params: viewerParams, onViewerChange } = {}) {
   let mesh = null;
   let builtKey = null;
   let noiseMix = 0;
@@ -179,42 +199,141 @@ export function createMorphSystem({ scene, params: viewerParams }) {
   normalMapTexture.wrapT = THREE.RepeatWrapping;
   normalMapTexture.colorSpace = THREE.NoColorSpace;
 
-  function createMaterial() {
-    return new THREE.MeshPhysicalMaterial({
-      color: morphParams.color,
-      roughness: viewerParams.roughness,
-      metalness: viewerParams.metalness,
-      side: getMorphSide(morphParams.side),
-      wireframe: viewerParams.wireframe,
+  let customTexture = null;
+  let customTextureObjectUrl = null;
+  const textureLoader = new THREE.TextureLoader();
+
+  function disposeCustomTexture() {
+    if (customTexture) {
+      customTexture.dispose();
+      customTexture = null;
+    }
+    if (customTextureObjectUrl) {
+      URL.revokeObjectURL(customTextureObjectUrl);
+      customTextureObjectUrl = null;
+    }
+    morphParams.customTextureFileName = "";
+  }
+
+  function applyCustomTextureSettings(texture) {
+    const wrapMode = morphParams.customTextureWrap;
+    const wrap =
+      wrapMode === "clamp" || wrapMode === "clamp to edge"
+        ? THREE.ClampToEdgeWrapping
+        : THREE.RepeatWrapping;
+    texture.wrapS = wrap;
+    texture.wrapT = wrap;
+    texture.repeat.set(
+      morphParams.customTextureRepeatU,
+      morphParams.customTextureRepeatV
+    );
+    texture.offset.set(
+      morphParams.customTextureOffsetU,
+      morphParams.customTextureOffsetV
+    );
+    texture.rotation = THREE.MathUtils.degToRad(morphParams.customTextureRotation);
+    texture.center.set(0.5, 0.5);
+    texture.needsUpdate = true;
+  }
+
+  function loadCustomTexture(file) {
+    return new Promise((resolve, reject) => {
+      disposeCustomTexture();
+      const objectUrl = URL.createObjectURL(file);
+      customTextureObjectUrl = objectUrl;
+      textureLoader.load(
+        objectUrl,
+        (texture) => {
+          texture.colorSpace = THREE.SRGBColorSpace;
+          applyCustomTextureSettings(texture);
+          customTexture = texture;
+          morphParams.customTextureEnabled = true;
+          morphParams.customTextureFileName = file.name || "image";
+          if (viewerParams.wireframe) {
+            viewerParams.wireframe = false;
+            onViewerChange?.();
+          }
+          if (mesh) applyMaterialState(mesh.material);
+          resolve(texture);
+        },
+        undefined,
+        (err) => {
+          disposeCustomTexture();
+          reject(err);
+        }
+      );
     });
   }
 
+  function clearCustomTexture() {
+    disposeCustomTexture();
+    morphParams.customTextureEnabled = false;
+    if (mesh) applyMaterialState(mesh.material);
+  }
+
+  function refreshCustomTexture() {
+    if (!customTexture) return;
+    applyCustomTextureSettings(customTexture);
+    if (mesh) applyMaterialState(mesh.material);
+  }
+
+  const _surfaceTint = new THREE.Color();
+
   function applyMaterialState(material) {
     const glass = morphParams.glassEnabled;
-    if (glass && viewerParams.wireframe) {
+    const hasCustom = morphParams.customTextureEnabled && customTexture;
+    const role = morphParams.customTextureRole;
+    const roleIsColor =
+      role === "color" || role === "color map" || role === "color+normal" || role === "color + normal";
+    const roleIsNormal =
+      role === "normal" || role === "normal map" || role === "color+normal" || role === "color + normal";
+    const useCustomColor =
+      hasCustom && morphParams.customTextureIntensity > 0 && roleIsColor;
+    const useCustomNormal = hasCustom && roleIsNormal;
+    const colorMix = useCustomColor ? morphParams.customTextureIntensity : 0;
+
+    if ((glass || hasCustom) && viewerParams.wireframe) {
       viewerParams.wireframe = false;
+      onViewerChange?.();
     }
 
-    material.color.set(morphParams.color);
     material.side = getMorphSide(morphParams.side);
-    material.wireframe = glass ? false : viewerParams.wireframe;
+    material.wireframe = hasCustom || glass ? false : viewerParams.wireframe;
+
+    _surfaceTint.set(morphParams.color);
+    _surfaceTint.lerp(new THREE.Color(0xffffff), colorMix);
+    material.color.copy(_surfaceTint);
 
     if (glass) {
       material.metalness = morphParams.glassMetalness;
       material.roughness = morphParams.glassRoughness;
-      material.transmission = morphParams.glassTransmission;
+      material.transmission = useCustomColor
+        ? THREE.MathUtils.lerp(
+            morphParams.glassTransmission,
+            Math.min(morphParams.glassTransmission, 0.15),
+            colorMix
+          )
+        : morphParams.glassTransmission;
       material.ior = morphParams.glassIor;
       material.thickness = morphParams.glassThickness;
       material.envMapIntensity = morphParams.glassEnvMapIntensity;
       material.clearcoat = morphParams.glassClearcoat;
       material.clearcoatRoughness = morphParams.glassClearcoatRoughness;
       material.transparent = morphParams.glassTransparent;
-      normalMapTexture.repeat.set(
-        morphParams.glassNormalRepeat,
-        morphParams.glassNormalRepeat
-      );
-      material.normalMap = normalMapTexture;
-      material.clearcoatNormalMap = normalMapTexture;
+      const normalTex = useCustomNormal ? customTexture : normalMapTexture;
+      if (useCustomNormal) {
+        normalTex.repeat.set(
+          morphParams.customTextureRepeatU,
+          morphParams.customTextureRepeatV
+        );
+      } else {
+        normalTex.repeat.set(
+          morphParams.glassNormalRepeat,
+          morphParams.glassNormalRepeat
+        );
+      }
+      material.normalMap = normalTex;
+      material.clearcoatNormalMap = normalTex;
       material.normalScale.set(
         morphParams.glassNormalScale,
         morphParams.glassNormalScale
@@ -233,16 +352,40 @@ export function createMorphSystem({ scene, params: viewerParams }) {
       material.clearcoat = 0;
       material.clearcoatRoughness = 0;
       material.transparent = false;
-      material.normalMap = null;
+      if (useCustomNormal) {
+        material.normalMap = customTexture;
+        material.normalScale.set(
+          morphParams.glassNormalScale || 1,
+          morphParams.glassNormalScale || 1
+        );
+      } else {
+        material.normalMap = null;
+        material.normalScale.set(1, 1);
+      }
       material.clearcoatNormalMap = null;
-      material.normalScale.set(1, 1);
       material.clearcoatNormalScale.set(1, 1);
+    }
+
+    material.map = useCustomColor ? customTexture : null;
+    if (useCustomColor) {
+      customTexture.colorSpace = THREE.SRGBColorSpace;
     }
 
     material.needsUpdate = true;
   }
 
+  function createMaterial() {
+    return new THREE.MeshPhysicalMaterial({
+      color: morphParams.color,
+      roughness: viewerParams.roughness,
+      metalness: viewerParams.metalness,
+      side: getMorphSide(morphParams.side),
+      wireframe: viewerParams.wireframe,
+    });
+  }
+
   function assignGeometry(geometry) {
+    ensureGeometryUVs(geometry);
     if (mesh) {
       mesh.geometry.dispose();
       mesh.geometry = geometry;
@@ -339,6 +482,7 @@ export function createMorphSystem({ scene, params: viewerParams }) {
 
   function dispose() {
     disposeMesh();
+    disposeCustomTexture();
     normalMapTexture.dispose();
   }
 
@@ -469,6 +613,10 @@ export function createMorphSystem({ scene, params: viewerParams }) {
     applyMaterial: () => {
       if (mesh) applyMaterialState(mesh.material);
     },
+    loadCustomTexture,
+    clearCustomTexture,
+    refreshCustomTexture,
+    hasCustomTexture: () => !!customTexture,
     dispose,
     getAnalysisMesh,
     getNoiseMix,
