@@ -409,7 +409,7 @@ export function createToolsPanel({
   bridgeFolder.addBinding(bridgeParams, "autoSend", { label: "auto send" });
 
   // --- Settings: WebMIDI + CC mapping ---
-  const midiFolder = settingsTab.addFolder({ title: "WebMIDI", expanded: true });
+  const midiFolder = settingsTab.addFolder({ title: "WebMIDI", expanded: false });
   const midiParams = {
     enabled: false,
     deviceId: "",
@@ -431,6 +431,8 @@ export function createToolsPanel({
   const viewerMount = document.getElementById("viewer-mount");
   const midiLegend = createMidiLegend(viewerMount ?? document.body);
   let showLegendBinding = null;
+  /** Log raw MIDI to console (helps diagnose silent knobs / wrong port). */
+  let midiDebug = true;
 
   function applyLegendEnabled() {
     midiLegend.setEnabled(mappingUi.showLegend && mappingUi.enabled);
@@ -518,6 +520,8 @@ export function createToolsPanel({
       syncMappingSectionDisplay();
       mappingUi.xyzMode = getMidiXyzMode();
       xyzModeBinding?.refresh();
+      // Prefer the mapping's device once ports are known
+      maybeAutoWireMidi(mapping.device?.name);
     } catch (err) {
       console.warn("[MIDI CC] load failed:", err);
       mappingUi.status = err.message || "mapping load failed";
@@ -525,32 +529,57 @@ export function createToolsPanel({
     mappingStatusBinding?.refresh();
   }
 
+  const ALL_INPUTS_ID = "*";
+
   const webMidi = createWebMidiController({
     onNoteOn: (ev) => {
       midiParams.lastNote = `${midiNoteName(ev.note)} (${ev.note})`;
       midiParams.status = `note on · vel ${ev.velocity}`;
-      midiStatusBinding.refresh();
-      midiNoteBinding.refresh();
+      midiStatusBinding?.refresh();
+      midiNoteBinding?.refresh();
       onMidiNoteOn?.(ev);
     },
     onNoteOff: (ev) => {
       midiParams.status = `note off · ${midiNoteName(ev.note)}`;
-      midiStatusBinding.refresh();
+      midiStatusBinding?.refresh();
       onMidiNoteOff?.(ev);
+    },
+    onMessage: (ev) => {
+      if (!midiDebug) return;
+      const cmdHex = ev.status.toString(16).padStart(2, "0");
+      const kind =
+        ev.cmd === 0xb0
+          ? `CC ${ev.data1}=${ev.data2}`
+          : ev.cmd === 0x90
+            ? `NoteOn ${ev.data1}`
+            : ev.cmd === 0x80
+              ? `NoteOff ${ev.data1}`
+              : `cmd=0x${cmdHex}`;
+      console.log(
+        `[MIDI raw] ${ev.deviceName || ev.deviceId || "?"} ch${ev.channel + 1} ${kind}`,
+        ev.raw
+      );
     },
     onCC: (ev) => {
       mappingUi.lastCc = `CC ${ev.cc} = ${ev.value}`;
       mappingLastCcBinding?.refresh();
-      const device = webMidi.getSelectedDevice();
-      ccMapper.handleCC(
-        ev.cc,
-        ev.value,
-        device?.id ?? ev.deviceId,
-        device?.name ?? ""
-      );
+      if (!mappingUi.enabled) {
+        mappingUi.status = "CC received · mapping disabled";
+        mappingStatusBinding?.refresh();
+        return;
+      }
+      if (!ccMapper.mapping) {
+        mappingUi.status = "no mapping loaded";
+        mappingStatusBinding?.refresh();
+        return;
+      }
+      ccMapper.handleCC(ev.cc, ev.value, ev.deviceId, ev.deviceName, {
+        trustSelected: true,
+      });
     },
     onStateChange: (devices) => {
       refreshMidiDevices(devices);
+      if (midiParams.enabled) connectMidiInput();
     },
   });
 
@@ -565,7 +594,10 @@ export function createToolsPanel({
   let midiDevices = [];
 
   function buildDeviceOptions(devices) {
-    const options = { "— select device —": "" };
+    const options = {
+      "— select device —": "",
+      "All inputs": ALL_INPUTS_ID,
+    };
     devices.forEach((d, i) => {
       const label =
         devices.filter((x) => x.name === d.name).length > 1
@@ -576,9 +608,22 @@ export function createToolsPanel({
     return options;
   }
 
+  function relatedInputIds(preferredName) {
+    if (!midiDevices.length) return [];
+    if (!preferredName) return midiDevices.map((d) => d.id);
+    return midiDevices
+      .filter((d) => MidiCCMapper.namesLooselyMatch(d.name, preferredName))
+      .map((d) => d.id);
+  }
+
   function onMidiDeviceChange() {
+    // Selecting a port implies the user wants to listen
+    if (midiParams.deviceId && !midiParams.enabled) {
+      midiParams.enabled = true;
+    }
     if (midiParams.enabled) {
       connectMidiInput();
+      enableLegendForWiredMidi();
     } else {
       const dev = midiDevices.find((d) => d.id === midiParams.deviceId);
       midiParams.status = dev ? `ready · ${dev.name}` : "ready";
@@ -592,8 +637,19 @@ export function createToolsPanel({
       midiDeviceBinding = null;
     }
     const options = buildDeviceOptions(midiDevices);
-    if (!midiParams.deviceId || !midiDevices.some((d) => d.id === midiParams.deviceId)) {
-      midiParams.deviceId = midiDevices.length === 1 ? midiDevices[0].id : "";
+    if (
+      midiParams.deviceId &&
+      midiParams.deviceId !== ALL_INPUTS_ID &&
+      !midiDevices.some((d) => d.id === midiParams.deviceId)
+    ) {
+      midiParams.deviceId = "";
+    }
+    if (!midiParams.deviceId) {
+      // Prefer Arturia MIDI port, else all inputs when several ports exist
+      const preferred =
+        findMidiDeviceByName(ccMapper.deviceName)?.id ??
+        (midiDevices.length === 1 ? midiDevices[0].id : "");
+      midiParams.deviceId = preferred || (midiDevices.length > 1 ? ALL_INPUTS_ID : "");
     }
     midiDeviceBinding = midiFolder.addBinding(midiParams, "deviceId", {
       label: "input",
@@ -608,17 +664,65 @@ export function createToolsPanel({
   }
 
   function connectMidiInput() {
-    if (!midiParams.enabled || !midiParams.deviceId) {
+    if (!midiParams.enabled) {
       webMidi.disconnect();
       return false;
     }
-    if (!webMidi.selectDevice(midiParams.deviceId)) {
-      midiParams.status = "device unavailable";
-      return false;
+
+    let ok = false;
+    if (midiParams.deviceId === ALL_INPUTS_ID || !midiParams.deviceId) {
+      ok = webMidi.selectDevice("*", { listenAll: true });
+      midiParams.status = ok
+        ? `listening · all inputs (${webMidi.getAttachedCount()})`
+        : "no MIDI inputs found";
+    } else {
+      // Also attach sibling ports (MIDI + DAW) that share the controller name
+      const selected = midiDevices.find((d) => d.id === midiParams.deviceId);
+      const siblings = selected
+        ? relatedInputIds(selected.name)
+        : [midiParams.deviceId];
+      const ids = siblings.length ? siblings : [midiParams.deviceId];
+      ok = webMidi.selectDevice(ids);
+      midiParams.status = ok
+        ? `listening · ${selected?.name ?? "device"}${
+            ids.length > 1 ? ` (+${ids.length - 1} ports)` : ""
+          }`
+        : "device unavailable";
     }
-    const dev = midiDevices.find((d) => d.id === midiParams.deviceId);
-    midiParams.status = dev ? `listening · ${dev.name}` : "listening";
-    return true;
+
+    if (ok) {
+      console.info(
+        `[WebMIDI] listening on ${webMidi.getAttachedCount()} port(s)`,
+        webMidi.listInputs().filter((d) =>
+          midiParams.deviceId === ALL_INPUTS_ID
+            ? true
+            : relatedInputIds(
+                midiDevices.find((x) => x.id === midiParams.deviceId)?.name
+              ).includes(d.id)
+        )
+      );
+    }
+    return ok;
+  }
+
+  /** After mapping/devices known: pick port + enable so knobs just work. */
+  function maybeAutoWireMidi(preferredName) {
+    if (!midiDevices.length) return;
+    if (!midiParams.deviceId || midiParams.deviceId === "") {
+      const match = findMidiDeviceByName(preferredName || ccMapper.deviceName);
+      if (match) midiParams.deviceId = match.id;
+      else if (midiDevices.length > 1) midiParams.deviceId = ALL_INPUTS_ID;
+      else midiParams.deviceId = midiDevices[0].id;
+      midiDeviceBinding?.refresh();
+    }
+    if (!midiParams.enabled && midiParams.deviceId) {
+      midiParams.enabled = true;
+    }
+    if (midiParams.enabled) {
+      connectMidiInput();
+      enableLegendForWiredMidi();
+      midiStatusBinding?.refresh();
+    }
   }
 
   async function initMidiDevices() {
@@ -630,13 +734,12 @@ export function createToolsPanel({
     try {
       const devices = await webMidi.requestAccess();
       refreshMidiDevices(devices);
-      if (midiParams.enabled) {
-        connectMidiInput();
-      } else {
+      maybeAutoWireMidi(ccMapper.deviceName);
+      if (!midiParams.enabled) {
         midiParams.status = devices.length
           ? devices.length === 1
             ? `ready · ${devices[0].name}`
-            : "ready · select a device"
+            : "ready · select a device (or All inputs)"
           : "no MIDI inputs found";
       }
     } catch (err) {
@@ -656,6 +759,12 @@ export function createToolsPanel({
       midiParams.status = dev ? `ready · ${dev.name}` : "ready";
       applyLegendEnabled();
     } else {
+      if (!midiParams.deviceId && midiDevices.length) {
+        midiParams.deviceId =
+          findMidiDeviceByName(ccMapper.deviceName)?.id ??
+          (midiDevices.length > 1 ? ALL_INPUTS_ID : midiDevices[0].id);
+        midiDeviceBinding?.refresh();
+      }
       connectMidiInput();
       enableLegendForWiredMidi();
     }
@@ -673,9 +782,8 @@ export function createToolsPanel({
     try {
       const devices = await webMidi.requestAccess();
       refreshMidiDevices(devices);
-      if (midiParams.enabled) {
-        connectMidiInput();
-      } else {
+      maybeAutoWireMidi(ccMapper.deviceName);
+      if (!midiParams.enabled) {
         midiParams.status = devices.length
           ? `${devices.length} device(s) found`
           : "no MIDI inputs found";
@@ -820,13 +928,23 @@ export function createToolsPanel({
   function findMidiDeviceByName(name) {
     if (!name || !midiDevices.length) return null;
     const want = name.toLowerCase();
-    return (
-      midiDevices.find((d) => d.name.toLowerCase() === want) ??
-      midiDevices.find(
-        (d) => d.name.toLowerCase().includes(want) || want.includes(d.name.toLowerCase())
-      ) ??
-      null
-    );
+    const scored = midiDevices
+      .map((d) => {
+        const n = d.name.toLowerCase();
+        let score = 0;
+        if (n === want) score = 100;
+        else if (MidiCCMapper.namesLooselyMatch(d.name, name)) score = 50;
+        else if (n.includes(want) || want.includes(n)) score = 20;
+        // Prefer the MIDI port over DAW/MCU when both match
+        if (score > 0 && /\bmidi\b/i.test(d.name) && !/\bdaw\b/i.test(d.name)) {
+          score += 10;
+        }
+        if (/\bdaw\b/i.test(d.name)) score -= 5;
+        return { d, score };
+      })
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score);
+    return scored[0]?.d ?? null;
   }
 
   function serializeMidiForOrganism() {

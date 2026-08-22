@@ -9,6 +9,7 @@ export const FALLBACK_MODELS = [
   "samples/torus-noise-1",
   "samples/torus-noise-2",
   "samples/torus-noise-3",
+  "craneo/craneo",
 ];
 
 let cachedModels = null;

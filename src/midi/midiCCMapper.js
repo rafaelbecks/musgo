@@ -71,17 +71,34 @@ export class MidiCCMapper {
     this.enabled = enabled;
   }
 
+  /**
+   * Loose name match for auto-selecting an input port.
+   * Strips MIDI/DAW suffixes so "KL Essential 49 mk3 MIDI" ≈ "… DAW".
+   */
+  static namesLooselyMatch(a, b) {
+    if (!a || !b) return false;
+    const norm = (s) =>
+      String(s)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+    const stripPort = (s) =>
+      s.replace(/\b(midi|daw|in|out|port)\b/g, " ").replace(/\s+/g, " ").trim();
+    const na = norm(a);
+    const nb = norm(b);
+    if (na === nb || na.includes(nb) || nb.includes(na)) return true;
+    const sa = stripPort(na);
+    const sb = stripPort(nb);
+    return Boolean(sa && sb && (sa === sb || sa.includes(sb) || sb.includes(sa)));
+  }
+
   matchesDevice(deviceId, deviceName) {
     if (!this.enabled || !this.mapping) return false;
 
     if (this.deviceId && deviceId === this.deviceId) return true;
 
     if (this.deviceName && deviceName) {
-      const nameLower = deviceName.toLowerCase();
-      const matchNameLower = this.deviceName.toLowerCase();
-      if (nameLower.includes(matchNameLower) || matchNameLower.includes(nameLower)) {
-        return true;
-      }
+      if (MidiCCMapper.namesLooselyMatch(deviceName, this.deviceName)) return true;
     }
 
     // No device filter → accept any input
@@ -93,28 +110,34 @@ export class MidiCCMapper {
   /**
    * @param {number} cc
    * @param {number} value 0–127
-   * @param {string} deviceId
-   * @param {string} deviceName
+   * @param {string} [deviceId]
+   * @param {string} [deviceName]
+   * @param {{ trustSelected?: boolean }} [opts] When true (default), skip
+   *   device-name filtering — WebMIDI already scoped to the selected port.
    */
-  handleCC(cc, value, deviceId, deviceName) {
+  handleCC(cc, value, deviceId, deviceName, opts = {}) {
     if (!this.enabled || !this.mapping) return;
-    if (!this.matchesDevice(deviceId, deviceName)) return;
+    const trustSelected = opts.trustSelected !== false;
+    if (!trustSelected && !this.matchesDevice(deviceId, deviceName)) return;
+
+    const ccNum = Number(cc);
+    const valNum = Number(value);
 
     if (this.mapping.sectionSelection) {
-      this.handleSectionSelection(cc, value);
+      this.handleSectionSelection(ccNum, valNum);
     }
 
-    if (this.mapping.shapeSelection?.cc === cc) {
-      this.handleShapeSelection(value);
+    if (Number(this.mapping.shapeSelection?.cc) === ccNum) {
+      this.handleShapeSelection(valNum);
     }
 
     // Mode toggle / camera / XYZ take priority over section param CCs
-    if (this.handleXyzModeToggle(cc, value)) return;
-    if (this.handleCamera(cc, value)) return;
-    if (this.handleRotation(cc, value)) return;
+    if (this.handleXyzModeToggle(ccNum, valNum)) return;
+    if (this.handleCamera(ccNum, valNum)) return;
+    if (this.handleRotation(ccNum, valNum)) return;
 
     if (this.currentSection && this.mapping.sectionParameters) {
-      this.handleSectionParameters(cc, value);
+      this.handleSectionParameters(ccNum, valNum);
     }
   }
 
@@ -123,7 +146,7 @@ export class MidiCCMapper {
     if (!mapping) return;
 
     for (const [section, sectionCC] of Object.entries(mapping)) {
-      if (sectionCC !== cc) continue;
+      if (Number(sectionCC) !== Number(cc)) continue;
       if (!MIDI_SECTIONS.includes(section)) break;
 
       // Button pads: 127 = on, 0 = off (activate on press)
