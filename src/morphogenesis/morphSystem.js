@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { GLTFExporter } from "three/addons/exporters/GLTFExporter.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { morphParams } from "./morphParams.js";
@@ -540,6 +541,45 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
     updateTransform();
   }
 
+  const objLoader = new OBJLoader();
+
+  function resolveModelAsset(modelFile, asset) {
+    modelAssetCache.set(modelFile, {
+      geometry: asset.geometry,
+      materials: asset.materials.map((mat) => mat.clone()),
+      textureSlots: asset.textureSlots,
+    });
+    return {
+      geometry: fitModelGeometry(
+        asset.geometry.clone(),
+        morphParams.extent,
+        morphParams.envelopeRadius
+      ),
+      materials: asset.materials.map((mat) => mat.clone()),
+      textureSlots: asset.textureSlots,
+    };
+  }
+
+  function loadModelRootFromUrl(url, format) {
+    return new Promise((resolve, reject) => {
+      const onLoaded = (root) => {
+        const asset = extractModelAsset(root);
+        if (!asset) {
+          reject(new Error("No mesh in model file"));
+          return;
+        }
+        resolve(asset);
+      };
+
+      if (format === "obj") {
+        objLoader.load(url, onLoaded, undefined, reject);
+        return;
+      }
+
+      glbLoader.load(url, (gltf) => onLoaded(gltf.scene), undefined, reject);
+    });
+  }
+
   function loadModelAsset(modelFile) {
     const cached = modelAssetCache.get(modelFile);
     if (cached) {
@@ -554,34 +594,29 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
       });
     }
 
-    return new Promise((resolve, reject) => {
-      glbLoader.load(
-        `./glb/${modelFile}.glb`,
-        (gltf) => {
-          const asset = extractModelAsset(gltf.scene);
-          if (!asset) {
-            reject(new Error(`No mesh in ${modelFile}.glb`));
-            return;
-          }
-          modelAssetCache.set(modelFile, {
-            geometry: asset.geometry,
-            materials: asset.materials.map((mat) => mat.clone()),
-            textureSlots: asset.textureSlots,
-          });
-          resolve({
-            geometry: fitModelGeometry(
-              asset.geometry.clone(),
-              morphParams.extent,
-              morphParams.envelopeRadius
-            ),
-            materials: asset.materials.map((mat) => mat.clone()),
-            textureSlots: asset.textureSlots,
-          });
-        },
-        undefined,
-        reject
-      );
-    });
+    return loadModelRootFromUrl(`./glb/${modelFile}.glb`, "glb").then((asset) =>
+      resolveModelAsset(modelFile, asset)
+    );
+  }
+
+  function loadModelFromFile(file) {
+    const baseName = String(file.name ?? "model")
+      .replace(/\.(glb|obj)$/i, "")
+      .replace(/[^\w.-]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "model";
+    const modelFile = `imported/${baseName}`;
+    const format = /\.obj$/i.test(file.name) ? "obj" : "glb";
+    const objectUrl = URL.createObjectURL(file);
+
+    return loadModelRootFromUrl(objectUrl, format)
+      .then((asset) => {
+        URL.revokeObjectURL(objectUrl);
+        return { modelFile, asset: resolveModelAsset(modelFile, asset) };
+      })
+      .catch((err) => {
+        URL.revokeObjectURL(objectUrl);
+        throw err;
+      });
   }
 
   async function rebuildGeometry(force = false) {
@@ -767,6 +802,7 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
       if (mesh) applyMaterialState(mesh.material);
     },
     loadCustomTexture,
+    loadModelFromFile,
     clearCustomTexture,
     refreshCustomTexture,
     hasCustomTexture: () => !!customTexture,

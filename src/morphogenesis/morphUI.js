@@ -8,7 +8,17 @@ import {
   DLA_ELEMENT_SHAPE_LABELS,
   NOISE_TARGET_LABELS,
 } from "./dla/constants.js";
-import { loadModelCatalog, modelsToOptions } from "./modelCatalog.js";
+import {
+  loadModelCatalog,
+  modelCategory,
+  modelName,
+  modelPath,
+  listModelCategories,
+  modelsInCategory,
+  categoriesToOptions,
+  modelNamesToOptions,
+} from "./modelCatalog.js";
+import { pickModelFile } from "../ui/modelFilePicker.js";
 import {
   saveOrganism,
   pickOrganismFile,
@@ -104,17 +114,116 @@ export async function setupMorphUI(
   }
   installOrganismSaveShortcut();
   const models = await loadModelCatalog();
-  const modelOptions = modelsToOptions(models);
-
-  if (!models.includes(morphParams.modelFile)) {
-    morphParams.modelFile = models[0];
-  }
-
-  const shapeFolders = {};
+  const importedModels = [];
+  const modelUi = {
+    category: modelCategory(morphParams.modelFile),
+    name: modelName(morphParams.modelFile),
+  };
+  let modelFolder = null;
+  let categoryInput = null;
   let modelInput = null;
+  let modelImportButton = null;
   let segmentsInput = null;
   let noiseTargetInput = null;
   let syncModelTextureFolder = () => {};
+
+  function allModels() {
+    const extra = importedModels.filter((path) => !models.includes(path));
+    return [...models, ...extra];
+  }
+
+  function syncModelFileFromUi() {
+    morphParams.modelFile = modelPath(modelUi.category, modelUi.name);
+  }
+
+  function syncModelUiFromParams() {
+    if (!allModels().includes(morphParams.modelFile)) {
+      morphParams.modelFile = models[0];
+    }
+    modelUi.category = modelCategory(morphParams.modelFile);
+    modelUi.name = modelName(morphParams.modelFile);
+  }
+
+  function disposeModelControls() {
+    categoryInput?.dispose();
+    modelInput?.dispose();
+    modelImportButton?.dispose();
+    categoryInput = null;
+    modelInput = null;
+    modelImportButton = null;
+  }
+
+  function buildModelControls() {
+    disposeModelControls();
+    if (!modelFolder) return;
+
+    syncModelUiFromParams();
+    const categories = listModelCategories(allModels());
+    if (!categories.includes(modelUi.category)) {
+      modelUi.category = categories[0];
+    }
+
+    const names = modelsInCategory(allModels(), modelUi.category).map(modelName);
+    if (!names.includes(modelUi.name)) {
+      modelUi.name = names[0];
+    }
+    syncModelFileFromUi();
+
+    categoryInput = modelFolder.addBinding(modelUi, "category", {
+      label: "category",
+      options: categoriesToOptions(categories),
+    });
+    categoryInput.on("change", () => {
+      const nextNames = modelsInCategory(allModels(), modelUi.category).map(modelName);
+      if (!nextNames.includes(modelUi.name)) {
+        modelUi.name = nextNames[0];
+      }
+      syncModelFileFromUi();
+      queueMicrotask(() => {
+        buildModelControls();
+        onChange?.();
+        syncModelTextureFolder?.();
+      });
+    });
+
+    modelInput = modelFolder.addBinding(modelUi, "name", {
+      label: "model",
+      options: modelNamesToOptions(names),
+    });
+    modelInput.on("change", () => {
+      syncModelFileFromUi();
+      onChange?.();
+      syncModelTextureFolder?.();
+    });
+
+    modelImportButton = modelFolder.addButton({ title: "Import GLB / OBJ…" });
+    modelImportButton.on("click", async () => {
+      try {
+        const file = await pickModelFile();
+        const { modelFile } = await morphSystem.loadModelFromFile(file);
+        if (!importedModels.includes(modelFile)) {
+          importedModels.push(modelFile);
+        }
+        morphParams.shape = "model";
+        morphParams.modelFile = modelFile;
+        modelUi.category = modelCategory(modelFile);
+        modelUi.name = modelName(modelFile);
+        shapeInput.refresh();
+        buildModelControls();
+        syncShapeFolders();
+        onChange?.();
+        syncModelTextureFolder?.();
+      } catch (err) {
+        if (err?.message !== "File picker cancelled.") {
+          console.error("[morph] failed to import model", err);
+        }
+      }
+    });
+  }
+
+  syncModelUiFromParams();
+
+  const shapeFolders = {};
 
   function syncShapeFolders() {
     const shape = morphParams.shape;
@@ -133,7 +242,7 @@ export async function setupMorphUI(
     const stacked = morphParams.lopezRosMode === "stacked";
     shapeFolders.lopezStackCount.hidden = !stacked;
     shapeFolders.lopezStackSpacing.hidden = !stacked;
-    if (modelInput) modelInput.hidden = !isModel;
+    if (modelFolder) modelFolder.hidden = !isModel;
     if (segmentsInput) {
       segmentsInput.hidden = isModel || shape === "lsystem" || shape === "dla";
     }
@@ -150,14 +259,8 @@ export async function setupMorphUI(
     onChange?.();
   });
 
-  modelInput = folder.addBinding(morphParams, "modelFile", {
-    label: "model",
-    options: modelOptions,
-  });
-  modelInput.on("change", () => {
-    onChange?.();
-    syncModelTextureFolder?.();
-  });
+  modelFolder = folder.addFolder({ title: "Model", expanded: true });
+  buildModelControls();
 
   bind(folder, morphParams, "extent", { label: "extent", min: 0.5, max: 10, step: 0.1 }, onChange);
 
@@ -987,6 +1090,7 @@ export async function setupMorphUI(
   });
   async function applyLoadedOrganism({ state, file, fileHandle = null }) {
     adoptLoadedOrganism({ state, file, fileHandle });
+    buildModelControls();
     syncShapeFolders();
     syncGlassFolder();
     syncCustomTexFolder();
@@ -1023,6 +1127,7 @@ export async function setupMorphUI(
       syncGlassFolder();
     },
     refreshLocal() {
+      buildModelControls();
       syncShapeFolders();
       syncGlassFolder();
       syncModelTextureFolder();
