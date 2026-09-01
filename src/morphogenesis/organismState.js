@@ -10,11 +10,13 @@ import { modulationSystem } from "../modulation/modulationSystem.js";
 export const ORGANISM_TYPE = "organism";
 export const ORGANISM_VERSION = 1;
 
+/** Settings → Viewer + Environment (not WebMIDI). */
 const VIEWER_KEYS = [
   "wireframe",
   "roughness",
   "metalness",
   "environment",
+  "envCategory",
   "customEnvEnabled",
   "customEnvFileName",
   "customEnvRotation",
@@ -24,6 +26,14 @@ const VIEWER_KEYS = [
   "bgBlur",
   "lightIntensity",
   "ambient",
+  "showGrid",
+  "showAxes",
+  "gridSize",
+  "chamberFocusDistance",
+  "autoRotate",
+  "rotateSpeed",
+  "fpMove",
+  "moveSpeed",
 ];
 
 /** Underwater volume + caustics (Settings → Underwater). */

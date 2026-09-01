@@ -172,6 +172,10 @@ export function createToolsPanel({
       sceneSystem.light.intensity = params.lightIntensity;
       sceneSystem.ambient.intensity = params.ambient;
       sceneSystem.scene.backgroundBlurriness = params.bgBlur;
+      sceneSystem.controls.autoRotate = params.autoRotate;
+      sceneSystem.controls.autoRotateSpeed = params.rotateSpeed;
+      sceneSystem.rebuildGrid();
+      sceneSystem.rebuildAxes();
       syncCustomEnvFolder();
       await onEnvironmentChange?.();
       underwaterSystem?.applyParams();
