@@ -28,6 +28,28 @@ const MIDI_MAPPING_PRESETS = {
   "Example (generic)": "./midi-mappings/example-mapping.json",
 };
 
+function decorateToolsTabs(rootEl, tabs) {
+  if (!rootEl) return;
+  let buttons = [
+    ...rootEl.querySelectorAll(".tp-tabv_t > button, .tp-tbiv_t > button, .tp-tabv_ti, .tp-tbiv_ti"),
+  ];
+  if (!buttons.length) {
+    buttons = [...rootEl.querySelectorAll("button")].filter((btn) =>
+      tabs.some((tab) => btn.textContent?.trim() === tab.label)
+    );
+  }
+  tabs.forEach((tab, i) => {
+    const btn = buttons[i];
+    if (!btn) return;
+    btn.classList.add("tools-tab");
+    btn.setAttribute("title", tab.label);
+    btn.innerHTML = `
+      <ion-icon class="tools-tab__icon" name="${tab.icon}" aria-hidden="true"></ion-icon>
+      <span class="tools-tab__label">${tab.label}</span>
+    `;
+  });
+}
+
 export function createToolsPanel({
   container,
   morphSystem,
@@ -45,7 +67,7 @@ export function createToolsPanel({
   onChamberGraphChange,
   underwaterSystem,
 }) {
-  const pane = new Pane({ title: "MUSGO", container });
+  const pane = new Pane({ container });
 
   const tab = pane.addTab({
     pages: [
@@ -54,6 +76,12 @@ export function createToolsPanel({
       { title: "Settings" },
     ],
   });
+
+  decorateToolsTabs(container ?? pane.element, [
+    { icon: "shapes-outline", label: "Morphogenesis" },
+    { icon: "pulse-outline", label: "Modulation" },
+    { icon: "settings-outline", label: "Settings" },
+  ]);
 
   const morphTab = tab.pages[0];
   const soundTab = tab.pages[1];

@@ -1,16 +1,12 @@
 /**
- * Help modal — loads README.md and renders markdown (GLOW-style info panel).
+ * About MUSGO — compact credit modal (displaced logo, version, repo).
  */
 
-const HELP_MARKDOWN_URL = "./README.md";
+import { createMusgoLogo } from "../splash/musgoLogo.js";
 
-const HELP_ICON_SVG = `
-<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-  <circle cx="12" cy="12" r="9" />
-  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-  <line x1="12" y1="17" x2="12.01" y2="17" />
-</svg>
-`.trim();
+const APP_VERSION = "0.1.0";
+const REPO_URL = "https://github.com/rafaelbecks/musgo";
+const ABOUT_LOGO_WIDTH = 168;
 
 const CLOSE_ICON_SVG = `
 <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -19,9 +15,13 @@ const CLOSE_ICON_SVG = `
 </svg>
 `.trim();
 
-export function createHelpModal({
+export function createHelpModal(options) {
+  return createAboutModal(options);
+}
+
+export function createAboutModal({
   buttonParent = document.querySelector("#tools-panel .panel-header"),
-  showButton = true,
+  showButton = false,
 } = {}) {
   const hasButton = showButton && buttonParent;
   let btn = null;
@@ -29,63 +29,53 @@ export function createHelpModal({
   if (hasButton) {
     btn = document.createElement("button");
     btn.type = "button";
-    btn.id = "help-btn";
+    btn.id = "about-btn";
     btn.className = "help-btn";
-    btn.title = "Help";
-    btn.setAttribute("aria-label", "Help");
-    btn.innerHTML = HELP_ICON_SVG;
+    btn.title = "About";
+    btn.setAttribute("aria-label", "About");
+    btn.innerHTML = `<ion-icon name="information-circle-outline"></ion-icon>`;
     buttonParent.appendChild(btn);
   }
 
+  const year = new Date().getFullYear();
   const modal = document.createElement("div");
-  modal.id = "help-modal";
-  modal.className = "help-modal";
+  modal.id = "about-modal";
+  modal.className = "help-modal about-modal";
   modal.setAttribute("role", "dialog");
   modal.setAttribute("aria-modal", "true");
-  modal.setAttribute("aria-labelledby", "help-modal-title");
+  modal.setAttribute("aria-labelledby", "about-modal-title");
   modal.hidden = true;
   modal.innerHTML = `
-    <div class="help-modal__content">
-      <header class="help-modal__header">
-        <h2 id="help-modal-title">MUSGO</h2>
-        <button type="button" class="help-modal__close" title="Close" aria-label="Close">
-          ${CLOSE_ICON_SVG}
-        </button>
-      </header>
-      <div class="help-modal__body" id="help-modal-body">
-        <p class="help-modal__loading">Loading…</p>
+    <div class="help-modal__content about-modal__content">
+      <button type="button" class="help-modal__close about-modal__close" title="Close" aria-label="Close">
+        ${CLOSE_ICON_SVG}
+      </button>
+      <div class="about-modal__body">
+        <h2 id="about-modal-title" class="about-modal__title visually-hidden">MUSGO</h2>
+        <canvas class="about-modal__logo" aria-hidden="true"></canvas>
+        <p class="about-modal__meta">v${APP_VERSION} · ${year}</p>
+        <a
+          class="about-modal__repo"
+          href="${REPO_URL}"
+          target="_blank"
+          rel="noopener noreferrer"
+        >github.com/rafaelbecks/musgo</a>
       </div>
     </div>
   `;
   document.body.appendChild(modal);
 
-  const bodyEl = modal.querySelector("#help-modal-body");
   const closeBtn = modal.querySelector(".help-modal__close");
-  let loaded = false;
+  const logoCanvas = modal.querySelector(".about-modal__logo");
+  const logo = createMusgoLogo(logoCanvas);
+  logo.state.fitWidth = ABOUT_LOGO_WIDTH;
   let open = false;
 
-  async function loadContent() {
-    if (loaded) return;
-    bodyEl.innerHTML = `<p class="help-modal__loading">Loading…</p>`;
+  async function ensureLogo() {
     try {
-      const [{ marked }, response] = await Promise.all([
-        import("https://esm.sh/marked@15.0.7"),
-        fetch(HELP_MARKDOWN_URL),
-      ]);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const markdown = await response.text();
-      bodyEl.innerHTML = marked.parse(markdown);
-      // Keep relative media working from site root
-      bodyEl.querySelectorAll("img").forEach((img) => {
-        const src = img.getAttribute("src");
-        if (src && src.startsWith("./")) {
-          img.setAttribute("src", src.slice(2));
-        }
-      });
-      loaded = true;
+      await logo.start();
     } catch (err) {
-      console.error("[help] failed to load README", err);
-      bodyEl.innerHTML = `<p>Couldn’t load help. Open <a href="./README.md" target="_blank" rel="noreferrer">README.md</a> instead.</p>`;
+      console.error("[about] logo failed", err);
     }
   }
 
@@ -94,7 +84,7 @@ export function createHelpModal({
     modal.hidden = false;
     modal.classList.add("is-open");
     document.body.classList.add("help-modal-open");
-    loadContent();
+    ensureLogo();
     closeBtn.focus();
   }
 
@@ -103,6 +93,7 @@ export function createHelpModal({
     modal.classList.remove("is-open");
     modal.hidden = true;
     document.body.classList.remove("help-modal-open");
+    logo.stop();
   }
 
   function onKeyDown(ev) {
@@ -128,6 +119,7 @@ export function createHelpModal({
     close: hide,
     destroy() {
       window.removeEventListener("keydown", onKeyDown);
+      logo.destroy();
       btn?.remove();
       modal.remove();
       document.body.classList.remove("help-modal-open");

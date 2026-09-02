@@ -19,6 +19,8 @@ export function createMusgoLogo(canvas) {
 
   const state = {
     viewportScale: LOGO_VIEWPORT_SCALE,
+    /** When set, size logo to this CSS width instead of viewport fraction. */
+    fitWidth: null,
     get whiteOffsetX() {
       return logoConfig.WHITE_OFFSET_X;
     },
@@ -43,12 +45,14 @@ export function createMusgoLogo(canvas) {
   }
 
   function resize() {
-    const size =
-      Math.min(window.innerWidth, window.innerHeight) * state.viewportScale;
     const aspect = viewBox.width / viewBox.height;
     const offsetPad = Math.max(0, Math.abs(state.whiteOffsetX)) + 4;
-    const cssW = size + offsetPad;
-    const cssH = size / aspect;
+    const logoW =
+      state.fitWidth != null
+        ? state.fitWidth
+        : Math.min(window.innerWidth, window.innerHeight) * state.viewportScale;
+    const cssW = logoW + offsetPad;
+    const cssH = logoW / aspect;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.floor(cssW * dpr);
     canvas.height = Math.floor(cssH * dpr);
@@ -80,7 +84,9 @@ export function createMusgoLogo(canvas) {
 
     const pad = 0.92;
     const logoW =
-      Math.min(window.innerWidth, window.innerHeight) * state.viewportScale;
+      state.fitWidth != null
+        ? state.fitWidth
+        : Math.min(window.innerWidth, window.innerHeight) * state.viewportScale;
     const scale = Math.min(logoW / viewBox.width, cssH / viewBox.height) * pad;
     const drawnW = viewBox.width * scale;
     const ox = (cssW - drawnW) / 2;
@@ -107,21 +113,23 @@ export function createMusgoLogo(canvas) {
     state,
     resize,
     async start() {
-      await loadSvg();
+      if (!path) await loadSvg();
       resize();
-      baseHue = 60 + Math.random() * 80;
-      running = true;
-      window.addEventListener("resize", onResize);
-      raf = requestAnimationFrame(frame);
+      if (!running) {
+        baseHue = 60 + Math.random() * 80;
+        running = true;
+        window.addEventListener("resize", onResize);
+        raf = requestAnimationFrame(frame);
+      }
     },
     stop() {
       running = false;
       if (raf) cancelAnimationFrame(raf);
       raf = 0;
+      window.removeEventListener("resize", onResize);
     },
     destroy() {
       this.stop();
-      window.removeEventListener("resize", onResize);
     },
   };
 }
