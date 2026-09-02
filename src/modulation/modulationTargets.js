@@ -29,6 +29,13 @@ const ROTATION_PARAMS = [
   num("rotationZ", "rotation Z", -Math.PI * 2, Math.PI * 2, 0.01),
 ];
 
+const BLOOM_PARAMS = [
+  checkbox("bloomEnabled", "enabled"),
+  num("bloomStrength", "strength", 0, 3, 0.01),
+  num("bloomRadius", "radius", 0, 1, 0.01),
+  num("bloomThreshold", "threshold", 0, 1, 0.01),
+];
+
 /** Only continuous / toggle targets — skip selects (grammar, family, etc.). */
 function modulableOnly(params) {
   return params.filter((p) => p.type === "number" || p.type === "checkbox");
@@ -64,6 +71,11 @@ export const MOD_CATEGORIES = [
     id: "rotation",
     label: "Rotation",
     getParams: () => ROTATION_PARAMS,
+  },
+  {
+    id: "bloom",
+    label: "Bloom",
+    getParams: () => BLOOM_PARAMS,
   },
 ];
 

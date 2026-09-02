@@ -3,6 +3,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
 import { EXRLoader } from "three/addons/loaders/EXRLoader.js";
 import { params } from "./config.js";
+import { createPostProcessing } from "./scene/postProcessing.js";
 
 export function createSceneSystem({ mount, loading } = {}) {
   const container = mount ?? document.body;
@@ -257,12 +258,15 @@ export function createSceneSystem({ mount, loading } = {}) {
     }
   }
 
+  const postProcessing = createPostProcessing({ renderer, scene, camera, params });
+
   function resize() {
     const { clientWidth: w, clientHeight: h } = container;
     if (w === 0 || h === 0) return;
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     renderer.setSize(w, h);
+    postProcessing.setSize(w, h);
   }
 
   const ro = new ResizeObserver(resize);
@@ -276,6 +280,7 @@ export function createSceneSystem({ mount, loading } = {}) {
     controls,
     light,
     ambient,
+    render: () => postProcessing.render(),
     loadEnvironment,
     loadEnvironmentFromFile,
     refreshCustomEnvironment,
@@ -286,6 +291,7 @@ export function createSceneSystem({ mount, loading } = {}) {
     resize,
     dispose() {
       ro.disconnect();
+      postProcessing.dispose();
       pmrem.dispose();
       renderer.dispose();
     },
