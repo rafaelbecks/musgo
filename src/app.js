@@ -14,10 +14,12 @@ import { createToolsPanel } from "./ui/toolsPanel.js";
 import { initPanelResize } from "./ui/panelResize.js";
 import { createCameraFocus } from "./scene/cameraFocus.js";
 import { morphParams } from "./morphogenesis/morphParams.js";
+import { markOrganismBaseline } from "./morphogenesis/organismState.js";
 import { midiNoteToPitchMultiplier } from "./midi/notePitch.js";
 import { updateMidiSmoothing } from "./midi/midiCamera.js";
 import { createHelpModal } from "./ui/helpModal.js";
 import { createExamplesModal } from "./ui/examplesModal.js";
+import { createAppMenu } from "./ui/appMenu.js";
 import { createUnderwaterSystem } from "./underwater/underwaterSystem.js";
 import { modulationSystem } from "./modulation/modulationSystem.js";
 import { resolveModParam } from "./modulation/modulationTargets.js";
@@ -27,7 +29,7 @@ export async function bootApp({ pendingOrganismFile = null } = {}) {
   const analysisLoading = createAnalysisLoading();
   const analysisLoadingEl = document.getElementById("analysis-loading");
   const mount = document.getElementById("viewer-mount");
-  createHelpModal();
+  const helpModal = createHelpModal({ showButton: false });
 
   const sceneSystem = createSceneSystem({ mount, loading });
   const input = createInputSystem(sceneSystem.camera, sceneSystem.controls);
@@ -334,7 +336,8 @@ export async function bootApp({ pendingOrganismFile = null } = {}) {
   await toolsPanel.ready;
   await toolsPanel.applyEnvironment();
 
-  createExamplesModal({
+  const examplesModal = createExamplesModal({
+    showButton: false,
     onSelectExample: async (file) => {
       try {
         await toolsPanel.loadOrganismFile(file);
@@ -348,6 +351,68 @@ export async function bootApp({ pendingOrganismFile = null } = {}) {
     },
   });
 
+  createAppMenu({
+    actions: {
+      new: () => toolsPanel.newOrganism(),
+      open: () => toolsPanel.openOrganism(),
+      save: () => toolsPanel.saveOrganism(),
+      saveAs: () => toolsPanel.saveOrganismAs(),
+      exportGlb: () => morphSystem.exportMorphGlb(),
+      exportObj: () => morphSystem.exportMorphObj(),
+      exportJson: () => morphSystem.exportMorphJson(),
+      examples: () => examplesModal.open(),
+      about: () => helpModal.open(),
+      isWireframe: () => params.wireframe,
+      isGrid: () => params.showGrid,
+      isAxes: () => params.showAxes,
+      wireframe: () => {
+        params.wireframe = !params.wireframe;
+        if (params.wireframe) {
+          if (morphParams.glassEnabled) morphParams.glassEnabled = false;
+          morphSystem.suspendModelTextureForWireframe();
+        } else {
+          morphSystem.restoreModelTextureAfterWireframe();
+        }
+        morphUiHooks.refreshViewer?.();
+        toolsPanel.refreshModelTexture?.();
+        morphSystem.applyMaterial();
+      },
+      grid: () => {
+        params.showGrid = !params.showGrid;
+        sceneSystem.rebuildGrid();
+      },
+      axes: () => {
+        params.showAxes = !params.showAxes;
+        sceneSystem.rebuildAxes();
+      },
+    },
+  });
+
+  window.addEventListener("keydown", (ev) => {
+    const mod = ev.metaKey || ev.ctrlKey;
+    if (!mod) return;
+    const tag = ev.target?.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || ev.target?.isContentEditable) return;
+
+    if (ev.key === "o" || ev.key === "O") {
+      ev.preventDefault();
+      toolsPanel.openOrganism().catch((err) => {
+        if (err?.message === "File picker cancelled." || err?.message === "No file selected.") return;
+        console.error("[organism] open failed", err);
+        window.alert(err?.message || "Failed to open organism file.");
+      });
+      return;
+    }
+
+    if (ev.key === "n" || ev.key === "N") {
+      ev.preventDefault();
+      toolsPanel.newOrganism().catch((err) => {
+        console.error("[organism] new failed", err);
+        window.alert(err?.message || "Failed to create new specimen.");
+      });
+    }
+  });
+
   if (pendingOrganismFile) {
     try {
       await toolsPanel.loadOrganismFile(pendingOrganismFile);
@@ -359,6 +424,7 @@ export async function bootApp({ pendingOrganismFile = null } = {}) {
 
   await morphSystem.sync();
   await toolsPanel.refreshModelTexture?.();
+  if (!pendingOrganismFile) markOrganismBaseline();
   if (params.autoAnalyze) {
     await runAnalysis();
   }
@@ -377,11 +443,12 @@ export async function bootApp({ pendingOrganismFile = null } = {}) {
       toolsPanel.refreshModulation?.();
     }
 
-    const restoreModulation = modulationSystem.applyToParams(
+    const restoreMorphMod = modulationSystem.applyToParams(
       morphParams,
       resolveModParam
     );
-    const modulating = Boolean(restoreModulation);
+    const restoreViewerMod = modulationSystem.applyToParams(params, resolveModParam);
+    const modulating = Boolean(restoreMorphMod || restoreViewerMod);
 
     input.applyWalkMovement(delta);
     cameraFocus.update();
@@ -400,9 +467,10 @@ export async function bootApp({ pendingOrganismFile = null } = {}) {
     morphSystem.update(delta);
     underwaterSystem.update(delta);
 
-    sceneSystem.renderer.render(sceneSystem.scene, sceneSystem.camera);
+    sceneSystem.render();
 
-    restoreModulation?.();
+    restoreMorphMod?.();
+    restoreViewerMod?.();
     wasModulating = modulating;
   }
 

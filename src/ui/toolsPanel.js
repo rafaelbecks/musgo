@@ -65,12 +65,6 @@ export function createToolsPanel({
 
   const viewFolder = viewTab.addFolder({ title: "Viewer", expanded: true });
 
-  viewFolder.addBinding(params, "showGrid", { label: "grid" }).on("change", () => {
-    sceneSystem.rebuildGrid();
-  });
-  viewFolder.addBinding(params, "showAxes", { label: "axes" }).on("change", () => {
-    sceneSystem.rebuildAxes();
-  });
   viewFolder.addBinding(params, "gridSize", {
     label: "grid size",
     min: 5,
@@ -105,34 +99,12 @@ export function createToolsPanel({
     step: 0.05,
   });
 
-  const wireframeBinding = viewFolder
-    .addBinding(params, "wireframe", { label: "wireframe" })
-    .on("change", (ev) => {
-      if (ev.value && morphParams.glassEnabled) {
-        if (morphUi) morphUi.setGlassEnabled(false);
-        else morphParams.glassEnabled = false;
-      }
-      onRefresh?.();
-    });
   if (morphUiHooks) {
     morphUiHooks.refreshViewer = () => {
-      wireframeBinding.refresh();
       morphSystem.applyMaterial();
     };
   }
 
-  viewFolder.addBinding(params, "roughness", {
-    label: "roughness",
-    min: 0,
-    max: 1,
-    step: 0.01,
-  }).on("change", () => onRefresh?.());
-  viewFolder.addBinding(params, "metalness", {
-    label: "metalness",
-    min: 0,
-    max: 1,
-    step: 0.01,
-  }).on("change", () => onRefresh?.());
   viewFolder.addBinding(params, "exposure", {
     label: "exposure",
     min: 0.2,
@@ -141,6 +113,44 @@ export function createToolsPanel({
   }).on("change", (ev) => {
     sceneSystem.renderer.toneMappingExposure = ev.value;
   });
+
+  const bloomFolder = viewFolder.addFolder({ title: "Bloom", expanded: false });
+  const bloomBindings = [];
+
+  bloomFolder.addBinding(params, "bloomEnabled", { label: "enabled" });
+  bloomBindings.push(
+    bloomFolder.addBinding(params, "bloomStrength", {
+      label: "strength",
+      min: 0,
+      max: 3,
+      step: 0.01,
+    })
+  );
+  bloomBindings.push(
+    bloomFolder.addBinding(params, "bloomRadius", {
+      label: "radius",
+      min: 0,
+      max: 1,
+      step: 0.01,
+    })
+  );
+  bloomBindings.push(
+    bloomFolder.addBinding(params, "bloomThreshold", {
+      label: "threshold",
+      min: 0,
+      max: 1,
+      step: 0.01,
+    })
+  );
+
+  const syncBloomFolder = () => {
+    const show = params.bloomEnabled;
+    for (const binding of bloomBindings) {
+      binding.hidden = !show;
+    }
+  };
+  bloomFolder.on("change", syncBloomFolder);
+  syncBloomFolder();
 
   let morphUi = null;
   let envBinding = null;
@@ -154,7 +164,7 @@ export function createToolsPanel({
     onGlassEnable: () => {
       if (params.wireframe) {
         params.wireframe = false;
-        wireframeBinding.refresh();
+        morphSystem.applyMaterial();
       }
       // Only pick a random HDR if nothing is selected yet
       if (!params.environment || params.environment === "none") {
@@ -165,7 +175,8 @@ export function createToolsPanel({
     },
     refreshPane: () => pane.refresh(),
     onOrganismLoaded: async () => {
-      wireframeBinding.refresh();
+      morphSystem.reconcileModelTextureAndWireframe();
+      morphUi?.refreshModelTexture?.();
       // Rebuild so the loaded env appears even if outside the active category filter
       rebuildEnvBinding();
       sceneSystem.renderer.toneMappingExposure = params.exposure;
@@ -177,6 +188,7 @@ export function createToolsPanel({
       sceneSystem.rebuildGrid();
       sceneSystem.rebuildAxes();
       syncCustomEnvFolder();
+      syncBloomFolder();
       await onEnvironmentChange?.();
       underwaterSystem?.applyParams();
       modulationUi.refresh();
@@ -578,7 +590,7 @@ export function createToolsPanel({
       if (detail?.key === "glassEnabled" && morphParams.glassEnabled) {
         if (params.wireframe) {
           params.wireframe = false;
-          wireframeBinding.refresh();
+          morphSystem.applyMaterial();
         }
         // Mirror morph UI glass-enable side effects
         if (!params.environment || params.environment === "none") {
@@ -1267,6 +1279,22 @@ export function createToolsPanel({
     async loadOrganismFile(file) {
       await morphUiReady;
       return morphUi.loadOrganismFile(file);
+    },
+    async openOrganism() {
+      await morphUiReady;
+      return morphUi.openOrganism();
+    },
+    async newOrganism() {
+      await morphUiReady;
+      return morphUi.newOrganism();
+    },
+    async saveOrganism() {
+      await morphUiReady;
+      return morphUi.saveOrganism();
+    },
+    async saveOrganismAs() {
+      await morphUiReady;
+      return morphUi.saveOrganismAs();
     },
   };
 }

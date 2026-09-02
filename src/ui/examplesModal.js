@@ -21,18 +21,24 @@ function displayName(filename) {
 
 export function createExamplesModal({
   buttonParent = document.querySelector("#viewer-panel .panel-header"),
+  showButton = true,
   onSelectExample,
 } = {}) {
-  if (!buttonParent) return { open() {}, close() {}, destroy() {} };
+  const hasButton = showButton && buttonParent;
+  let btn = null;
 
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.id = "examples-btn";
-  btn.className = "examples-btn";
-  btn.title = "Examples";
-  btn.setAttribute("aria-label", "Examples");
-  btn.innerHTML = `<ion-icon name="bug-outline"></ion-icon>`;
-  buttonParent.appendChild(btn);
+  if (hasButton) {
+    btn = document.createElement("button");
+    btn.type = "button";
+    btn.id = "examples-btn";
+    btn.className = "examples-btn";
+    btn.title = "Examples";
+    btn.setAttribute("aria-label", "Examples");
+    btn.innerHTML = `<ion-icon name="bug-outline"></ion-icon>`;
+    buttonParent.appendChild(btn);
+  } else if (!onSelectExample) {
+    return { open() {}, close() {}, destroy() {} };
+  }
 
   const modal = document.createElement("div");
   modal.id = "examples-modal";
@@ -139,7 +145,7 @@ export function createExamplesModal({
     }
   }
 
-  btn.addEventListener("click", (ev) => {
+  btn?.addEventListener("click", (ev) => {
     ev.stopPropagation();
     show();
   });
@@ -154,7 +160,7 @@ export function createExamplesModal({
     close: hide,
     destroy() {
       window.removeEventListener("keydown", onKeyDown);
-      btn.remove();
+      btn?.remove();
       modal.remove();
     },
   };

@@ -21,17 +21,21 @@ const CLOSE_ICON_SVG = `
 
 export function createHelpModal({
   buttonParent = document.querySelector("#tools-panel .panel-header"),
+  showButton = true,
 } = {}) {
-  if (!buttonParent) return { open() {}, close() {}, destroy() {} };
+  const hasButton = showButton && buttonParent;
+  let btn = null;
 
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.id = "help-btn";
-  btn.className = "help-btn";
-  btn.title = "Help";
-  btn.setAttribute("aria-label", "Help");
-  btn.innerHTML = HELP_ICON_SVG;
-  buttonParent.appendChild(btn);
+  if (hasButton) {
+    btn = document.createElement("button");
+    btn.type = "button";
+    btn.id = "help-btn";
+    btn.className = "help-btn";
+    btn.title = "Help";
+    btn.setAttribute("aria-label", "Help");
+    btn.innerHTML = HELP_ICON_SVG;
+    buttonParent.appendChild(btn);
+  }
 
   const modal = document.createElement("div");
   modal.id = "help-modal";
@@ -109,7 +113,7 @@ export function createHelpModal({
     }
   }
 
-  btn.addEventListener("click", (ev) => {
+  btn?.addEventListener("click", (ev) => {
     ev.stopPropagation();
     show();
   });
@@ -124,7 +128,7 @@ export function createHelpModal({
     close: hide,
     destroy() {
       window.removeEventListener("keydown", onKeyDown);
-      btn.remove();
+      btn?.remove();
       modal.remove();
       document.body.classList.remove("help-modal-open");
     },

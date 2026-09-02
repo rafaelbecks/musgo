@@ -15,6 +15,10 @@ const VIEWER_KEYS = [
   "wireframe",
   "roughness",
   "metalness",
+  "bloomEnabled",
+  "bloomStrength",
+  "bloomRadius",
+  "bloomThreshold",
   "environment",
   "envCategory",
   "customEnvEnabled",
@@ -251,8 +255,11 @@ function refreshSpecimenLabel() {
   if (!el) return;
 
   if (!session.filename) {
-    el.textContent = DEFAULT_SPECIMEN_LABEL;
-    el.title = "";
+    const star = session.dirty ? "*" : "";
+    el.textContent = `${DEFAULT_SPECIMEN_LABEL}${star}`;
+    el.title = session.dirty
+      ? "Unnamed specimen (unsaved changes)"
+      : "";
     return;
   }
 
@@ -265,7 +272,7 @@ function refreshSpecimenLabel() {
 
 /** Recompute dirty flag from current params and update the specimen label. */
 export function syncOrganismDirty() {
-  if (!session.filename || session.cleanFingerprint == null) {
+  if (session.cleanFingerprint == null) {
     session.dirty = false;
     refreshSpecimenLabel();
     return session.dirty;
@@ -276,6 +283,22 @@ export function syncOrganismDirty() {
     refreshSpecimenLabel();
   }
   return session.dirty;
+}
+
+/** True when the current specimen differs from the last clean baseline. */
+export function hasUnsavedOrganismChanges() {
+  return syncOrganismDirty();
+}
+
+/**
+ * Snapshot current params as the clean baseline (saved file or untitled New).
+ * Unlike markOrganismClean, works without a filename.
+ */
+export function markOrganismBaseline() {
+  clampMorphParams();
+  session.cleanFingerprint = contentFingerprint();
+  session.dirty = false;
+  refreshSpecimenLabel();
 }
 
 function markSessionClean({ id, filename, fileHandle = null } = {}) {
@@ -290,9 +313,7 @@ function markSessionClean({ id, filename, fileHandle = null } = {}) {
 /** Snapshot current params as the clean (saved) baseline. */
 export function markOrganismClean() {
   if (!session.filename) return;
-  session.cleanFingerprint = contentFingerprint();
-  session.dirty = false;
-  refreshSpecimenLabel();
+  markOrganismBaseline();
 }
 
 export function setSpecimenLabel(filename) {
@@ -446,6 +467,34 @@ export function adoptLoadedOrganism({ state, file, fileHandle = null }) {
     fileHandle,
   });
   return id;
+}
+
+/**
+ * Reset to a blank specimen (factory defaults). Clears file association.
+ * Caller should refresh UI / sync morph after this.
+ */
+export async function createNewOrganism() {
+  resetOrganismParamsToDefaults();
+  clampMorphParams();
+  modulationSystem.loadSerialized(null);
+  if (midiHooks?.reset) {
+    await midiHooks.reset();
+  }
+  session.id = null;
+  session.filename = null;
+  session.fileHandle = null;
+  markOrganismBaseline();
+}
+
+/**
+ * Confirm discarding unsaved work. Returns false if the user cancels.
+ */
+export function confirmDiscardUnsavedChanges() {
+  if (!hasUnsavedOrganismChanges()) return true;
+  const name = session.filename ?? "untitled specimen";
+  return window.confirm(
+    `Discard unsaved changes to “${name}”?\n\nThis cannot be undone.`
+  );
 }
 
 /** Wire ⌘S / Ctrl+S to overwrite the current organism file. */

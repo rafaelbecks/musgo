@@ -1,5 +1,4 @@
 import { morphParams, SHAPE_LABELS, MORPH_SHAPES } from "./morphParams.js";
-import { MINIMAL_SHAPES } from "./minimalSurfaces.js";
 import { LSYSTEM_PRESET_LABELS } from "./lsystem/index.js";
 import {
   DLA_SEED_MODE_LABELS,
@@ -10,13 +9,7 @@ import {
 } from "./dla/constants.js";
 import {
   loadModelCatalog,
-  modelCategory,
-  modelName,
-  modelPath,
-  listModelCategories,
-  modelsInCategory,
-  categoriesToOptions,
-  modelNamesToOptions,
+  modelsToOptions,
 } from "./modelCatalog.js";
 import { pickModelFile } from "../ui/modelFilePicker.js";
 import {
@@ -28,6 +21,9 @@ import {
   syncOrganismDirty,
   installOrganismSaveShortcut,
   applyOrganismMidi,
+  createNewOrganism,
+  confirmDiscardUnsavedChanges,
+  markOrganismBaseline,
 } from "./organismState.js";
 import { pickImageFile } from "../ui/imageFilePicker.js";
 import * as TweakpaneRotationInputPlugin from "@0b5vr/tweakpane-plugin-rotation";
@@ -49,15 +45,15 @@ const SHAPE_OPTIONS = Object.fromEntries(
   MORPH_SHAPES.map((id) => [SHAPE_LABELS[id] ?? id, id])
 );
 
-const LOPEZ_ROS_MODE_OPTIONS = {
-  catenoid: "catenoid",
-  "stacked catenoids": "stacked",
-};
-
 const GIELIS_FAMILY_OPTIONS = {
   superellipse: "superellipse",
   superrose: "superrose",
   superspiral: "superspiral",
+};
+
+const CATENOID_MODE_OPTIONS = {
+  catenoid: "catenoid",
+  "stacked catenoids": "stacked",
 };
 
 const GIELIS_PHI_MODE_OPTIONS = {
@@ -95,10 +91,6 @@ function bind(folder, obj, key, opts, onChange) {
   return input;
 }
 
-function isMinimalShape(shape) {
-  return MINIMAL_SHAPES.includes(shape);
-}
-
 export async function setupMorphUI(
   container,
   morphSystem,
@@ -115,12 +107,7 @@ export async function setupMorphUI(
   installOrganismSaveShortcut();
   const models = await loadModelCatalog();
   const importedModels = [];
-  const modelUi = {
-    category: modelCategory(morphParams.modelFile),
-    name: modelName(morphParams.modelFile),
-  };
   let modelFolder = null;
-  let categoryInput = null;
   let modelInput = null;
   let modelImportButton = null;
   let segmentsInput = null;
@@ -132,23 +119,9 @@ export async function setupMorphUI(
     return [...models, ...extra];
   }
 
-  function syncModelFileFromUi() {
-    morphParams.modelFile = modelPath(modelUi.category, modelUi.name);
-  }
-
-  function syncModelUiFromParams() {
-    if (!allModels().includes(morphParams.modelFile)) {
-      morphParams.modelFile = models[0];
-    }
-    modelUi.category = modelCategory(morphParams.modelFile);
-    modelUi.name = modelName(morphParams.modelFile);
-  }
-
   function disposeModelControls() {
-    categoryInput?.dispose();
     modelInput?.dispose();
     modelImportButton?.dispose();
-    categoryInput = null;
     modelInput = null;
     modelImportButton = null;
   }
@@ -157,42 +130,17 @@ export async function setupMorphUI(
     disposeModelControls();
     if (!modelFolder) return;
 
-    syncModelUiFromParams();
-    const categories = listModelCategories(allModels());
-    if (!categories.includes(modelUi.category)) {
-      modelUi.category = categories[0];
+    if (!allModels().includes(morphParams.modelFile)) {
+      morphParams.modelFile = models[0];
     }
 
-    const names = modelsInCategory(allModels(), modelUi.category).map(modelName);
-    if (!names.includes(modelUi.name)) {
-      modelUi.name = names[0];
-    }
-    syncModelFileFromUi();
-
-    categoryInput = modelFolder.addBinding(modelUi, "category", {
-      label: "category",
-      options: categoriesToOptions(categories),
-    });
-    categoryInput.on("change", () => {
-      const nextNames = modelsInCategory(allModels(), modelUi.category).map(modelName);
-      if (!nextNames.includes(modelUi.name)) {
-        modelUi.name = nextNames[0];
-      }
-      syncModelFileFromUi();
-      queueMicrotask(() => {
-        buildModelControls();
-        onChange?.();
-        syncModelTextureFolder?.();
-      });
-    });
-
-    modelInput = modelFolder.addBinding(modelUi, "name", {
+    modelInput = modelFolder.addBinding(morphParams, "modelFile", {
       label: "model",
-      options: modelNamesToOptions(names),
+      options: modelsToOptions(allModels()),
     });
-    modelInput.on("change", () => {
-      syncModelFileFromUi();
-      onChange?.();
+    modelInput.on("change", async () => {
+      await onChange?.();
+      morphSystem.preferTexturedModelView();
       syncModelTextureFolder?.();
     });
 
@@ -206,12 +154,11 @@ export async function setupMorphUI(
         }
         morphParams.shape = "model";
         morphParams.modelFile = modelFile;
-        modelUi.category = modelCategory(modelFile);
-        modelUi.name = modelName(modelFile);
         shapeInput.refresh();
         buildModelControls();
         syncShapeFolders();
-        onChange?.();
+        await onChange?.();
+        morphSystem.preferTexturedModelView();
         syncModelTextureFolder?.();
       } catch (err) {
         if (err?.message !== "File picker cancelled.") {
@@ -221,8 +168,6 @@ export async function setupMorphUI(
     });
   }
 
-  syncModelUiFromParams();
-
   const shapeFolders = {};
 
   function syncShapeFolders() {
@@ -230,18 +175,16 @@ export async function setupMorphUI(
     const isModel = shape === "model";
     shapeFolders.torus.hidden = shape !== "torus";
     shapeFolders.knot.hidden = shape !== "torusknot";
-    shapeFolders.minimal.hidden = !isMinimalShape(shape);
-    shapeFolders.chen.hidden = shape !== "chenGackstatter";
-    shapeFolders.lopez.hidden = shape !== "lopezros";
+    shapeFolders.catenoids.hidden = shape !== "catenoids";
     shapeFolders.gielis.hidden = shape !== "gielis";
     shapeFolders.leaf.hidden = shape !== "baschetLeaf";
     shapeFolders.lsystem.hidden = shape !== "lsystem";
     shapeFolders.lsystemSegments.hidden =
       shape !== "lsystem" || morphParams.lsystemPreset !== "shrimp";
     shapeFolders.dla.hidden = shape !== "dla";
-    const stacked = morphParams.lopezRosMode === "stacked";
-    shapeFolders.lopezStackCount.hidden = !stacked;
-    shapeFolders.lopezStackSpacing.hidden = !stacked;
+    const stacked = morphParams.catenoidMode === "stacked";
+    shapeFolders.catenoidStackCount.hidden = !stacked;
+    shapeFolders.catenoidStackSpacing.hidden = !stacked;
     if (modelFolder) modelFolder.hidden = !isModel;
     if (segmentsInput) {
       segmentsInput.hidden = isModel || shape === "lsystem" || shape === "dla";
@@ -254,9 +197,13 @@ export async function setupMorphUI(
     label: "shape",
     options: SHAPE_OPTIONS,
   });
-  shapeInput.on("change", () => {
+  shapeInput.on("change", async () => {
     syncShapeFolders();
-    onChange?.();
+    await onChange?.();
+    if (morphParams.shape === "model") {
+      morphSystem.preferTexturedModelView();
+      syncModelTextureFolder?.();
+    }
   });
 
   modelFolder = folder.addFolder({ title: "Model", expanded: true });
@@ -321,81 +268,56 @@ export async function setupMorphUI(
   bind(shapeFolders.knot, morphParams, "torusKnotP", { label: "p", min: 1, max: 12, step: 1 }, onChange);
   bind(shapeFolders.knot, morphParams, "torusKnotQ", { label: "q", min: 1, max: 12, step: 1 }, onChange);
 
-  shapeFolders.minimal = folder.addFolder({ title: "Minimal surface", expanded: true });
+  shapeFolders.catenoids = folder.addFolder({ title: "Catenoids", expanded: true });
   bind(
-    shapeFolders.minimal,
+    shapeFolders.catenoids,
     morphParams,
-    "minimalVSegments",
+    "catenoidVSegments",
     { label: "v segments", min: 16, max: 256, step: 1 },
     onChange
   );
-
-  shapeFolders.chen = shapeFolders.minimal.addFolder({ title: "Chen–Gackstätter", expanded: true });
   bind(
-    shapeFolders.chen,
+    shapeFolders.catenoids,
     morphParams,
-    "chenGackstatterRMin",
-    { label: "radius min", min: 0.05, max: 0.9, step: 0.01 },
-    onChange
-  );
-  bind(
-    shapeFolders.chen,
-    morphParams,
-    "chenGackstatterRMax",
-    { label: "radius max", min: 0.1, max: 0.95, step: 0.01 },
-    onChange
-  );
-  bind(
-    shapeFolders.chen,
-    morphParams,
-    "chenGackstatterStretchZ",
-    { label: "stretch Z", min: 0.2, max: 4, step: 0.05 },
-    onChange
-  );
-
-  shapeFolders.lopez = shapeFolders.minimal.addFolder({ title: "López–Ros", expanded: true });
-  bind(
-    shapeFolders.lopez,
-    morphParams,
-    "lopezRosMode",
-    { label: "mode", options: LOPEZ_ROS_MODE_OPTIONS },
+    "catenoidMode",
+    { label: "mode", options: CATENOID_MODE_OPTIONS },
     (ev) => {
       syncShapeFolders();
       onChange?.(ev);
     }
   );
   bind(
-    shapeFolders.lopez,
+    shapeFolders.catenoids,
     morphParams,
-    "lopezRosSpan",
-    { label: "catenoid span", min: 0.4, max: 2.5, step: 0.05 },
+    "catenoidSpan",
+    { label: "span", min: 0.4, max: 2.5, step: 0.05 },
     onChange
   );
   bind(
-    shapeFolders.lopez,
+    shapeFolders.catenoids,
     morphParams,
-    "lopezRosDeform",
+    "catenoidDeform",
     { label: "deform", min: -0.8, max: 0.8, step: 0.01 },
     onChange
   );
   bind(
-    shapeFolders.lopez,
+    shapeFolders.catenoids,
     morphParams,
-    "lopezRosTwist",
+    "catenoidTwist",
     { label: "twist", min: -Math.PI, max: Math.PI, step: 0.01 },
     onChange
   );
-  shapeFolders.lopezStackCount = bind(
-    shapeFolders.lopez,
+  shapeFolders.catenoidStackCount = bind(
+    shapeFolders.catenoids,
     morphParams,
-    "lopezRosStackCount",
+    "catenoidStackCount",
     { label: "stack count", min: 2, max: 7, step: 1 },
     onChange
   );
-  shapeFolders.lopezStackSpacing = bind(
-    shapeFolders.lopez,
+  shapeFolders.catenoidStackSpacing = bind(
+    shapeFolders.catenoids,
     morphParams,
-    "lopezRosStackSpacing",
+    "catenoidStackSpacing",
     { label: "neck span", min: 0.35, max: 5, step: 0.05 },
     onChange
   );
@@ -688,10 +610,12 @@ export async function setupMorphUI(
   bind(folder, morphParams, "color", { label: "color" }, onChange);
 
   const textureFolder = folder.addFolder({ title: "Texture", expanded: true });
+
+  const glassFolder = textureFolder.addFolder({ title: "Material texture", expanded: false });
   const glassBindings = [];
   let syncGlassFolder = null;
 
-  const glassEnabledInput = textureFolder.addBinding(morphParams, "glassEnabled", {
+  const glassEnabledInput = glassFolder.addBinding(morphParams, "glassEnabled", {
     label: "material texture",
   });
   glassEnabledInput.on("change", () => {
@@ -704,7 +628,7 @@ export async function setupMorphUI(
 
   glassBindings.push(
     bind(
-      textureFolder,
+      glassFolder,
       morphParams,
       "glassMetalness",
       { label: "metalness", min: 0, max: 1, step: 0.01 },
@@ -713,7 +637,7 @@ export async function setupMorphUI(
   );
   glassBindings.push(
     bind(
-      textureFolder,
+      glassFolder,
       morphParams,
       "glassRoughness",
       { label: "roughness", min: 0, max: 1, step: 0.01 },
@@ -722,7 +646,7 @@ export async function setupMorphUI(
   );
   glassBindings.push(
     bind(
-      textureFolder,
+      glassFolder,
       morphParams,
       "glassTransmission",
       { label: "transmission", min: 0, max: 1, step: 0.01 },
@@ -731,7 +655,7 @@ export async function setupMorphUI(
   );
   glassBindings.push(
     bind(
-      textureFolder,
+      glassFolder,
       morphParams,
       "glassIor",
       { label: "index of reflection", min: 1, max: 2.33, step: 0.01 },
@@ -740,7 +664,7 @@ export async function setupMorphUI(
   );
   glassBindings.push(
     bind(
-      textureFolder,
+      glassFolder,
       morphParams,
       "glassThickness",
       { label: "thickness", min: 0, max: 5, step: 0.1 },
@@ -749,7 +673,7 @@ export async function setupMorphUI(
   );
   glassBindings.push(
     bind(
-      textureFolder,
+      glassFolder,
       morphParams,
       "glassEnvMapIntensity",
       { label: "env intensity", min: 0, max: 3, step: 0.1 },
@@ -758,7 +682,7 @@ export async function setupMorphUI(
   );
   glassBindings.push(
     bind(
-      textureFolder,
+      glassFolder,
       morphParams,
       "glassClearcoat",
       { label: "clearcoat", min: 0, max: 1, step: 0.01 },
@@ -767,7 +691,7 @@ export async function setupMorphUI(
   );
   glassBindings.push(
     bind(
-      textureFolder,
+      glassFolder,
       morphParams,
       "glassClearcoatRoughness",
       { label: "clearcoat rough", min: 0, max: 1, step: 0.01 },
@@ -776,7 +700,7 @@ export async function setupMorphUI(
   );
   glassBindings.push(
     bind(
-      textureFolder,
+      glassFolder,
       morphParams,
       "glassNormalScale",
       { label: "normal scale", min: 0, max: 5, step: 0.01 },
@@ -785,7 +709,7 @@ export async function setupMorphUI(
   );
   glassBindings.push(
     bind(
-      textureFolder,
+      glassFolder,
       morphParams,
       "glassClearcoatNormalScale",
       { label: "coat normal", min: 0, max: 5, step: 0.01 },
@@ -794,7 +718,7 @@ export async function setupMorphUI(
   );
   glassBindings.push(
     bind(
-      textureFolder,
+      glassFolder,
       morphParams,
       "glassNormalRepeat",
       { label: "normal repeat", min: 1, max: 8, step: 1 },
@@ -824,6 +748,7 @@ export async function setupMorphUI(
       "modelUseOriginalTexture",
       { label: "original texture" },
       () => {
+        morphSystem.preferTexturedModelView();
         syncModelTextureFolder();
         morphSystem.applyMaterial();
         onChange?.();
@@ -1063,31 +988,6 @@ export async function setupMorphUI(
     onChange
   );
 
-  folder.addButton({ title: "Export GLB + JSON" }).on("click", () => {
-    morphSystem.exportMorph();
-  });
-
-  const organismFolder = folder.addFolder({ title: "Organism", expanded: true });
-  organismFolder.addButton({ title: "Save .organism" }).on("click", async () => {
-    try {
-      const result = await saveOrganism();
-      console.info(`[organism] saved ${result.filename} (${result.method})`);
-    } catch (err) {
-      if (err?.name === "AbortError" || err?.message === "File picker cancelled.") return;
-      console.error("[organism] save failed", err);
-      window.alert(err?.message || "Failed to save organism file.");
-    }
-  });
-  organismFolder.addButton({ title: "Save as…" }).on("click", async () => {
-    try {
-      const result = await saveOrganism({ forcePicker: true });
-      console.info(`[organism] saved ${result.filename} (${result.method})`);
-    } catch (err) {
-      if (err?.name === "AbortError" || err?.message === "File picker cancelled.") return;
-      console.error("[organism] save failed", err);
-      window.alert(err?.message || "Failed to save organism file.");
-    }
-  });
   async function applyLoadedOrganism({ state, file, fileHandle = null }) {
     adoptLoadedOrganism({ state, file, fileHandle });
     buildModelControls();
@@ -1105,18 +1005,33 @@ export async function setupMorphUI(
     console.info(`[organism] loaded ${file?.name ?? state.id}`);
   }
 
-  organismFolder.addButton({ title: "Load .organism" }).on("click", async () => {
-    try {
-      const { state, file, fileHandle } = await pickOrganismFile();
-      await applyLoadedOrganism({ state, file, fileHandle });
-    } catch (err) {
-      if (err?.message === "File picker cancelled." || err?.message === "No file selected.") {
-        return;
-      }
-      console.error("[organism] load failed", err);
-      window.alert(err?.message || "Failed to load organism file.");
-    }
-  });
+  async function openOrganism() {
+    if (!confirmDiscardUnsavedChanges()) return;
+    const { state, file, fileHandle } = await pickOrganismFile();
+    await applyLoadedOrganism({ state, file, fileHandle });
+  }
+
+  async function newOrganism() {
+    if (!confirmDiscardUnsavedChanges()) return;
+    await createNewOrganism();
+    buildModelControls();
+    syncShapeFolders();
+    syncGlassFolder();
+    syncCustomTexFolder();
+    syncModelTextureFolder();
+    syncRotationBinding();
+    refreshPane?.();
+    await onOrganismLoaded?.(null);
+    await onChange?.();
+    markOrganismBaseline();
+    console.info("[organism] new specimen");
+  }
+
+  async function saveOrganismFile({ forcePicker = false } = {}) {
+    const result = await saveOrganism({ forcePicker });
+    console.info(`[organism] saved ${result.filename} (${result.method})`);
+    return result;
+  }
 
   syncShapeFolders();
 
@@ -1135,6 +1050,10 @@ export async function setupMorphUI(
       syncOrganismDirty();
     },
     refreshModelTexture: () => syncModelTextureFolder(),
+    openOrganism,
+    newOrganism,
+    saveOrganism: () => saveOrganismFile(),
+    saveOrganismAs: () => saveOrganismFile({ forcePicker: true }),
     async loadOrganismFile(file) {
       const state = await readOrganismFile(file);
       await applyLoadedOrganism({ state, file, fileHandle: null });
