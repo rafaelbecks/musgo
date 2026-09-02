@@ -15,7 +15,6 @@ import {
 
 const GIELIS_FAMILY_OPTIONS = ["superellipse", "superrose", "superspiral"];
 const GIELIS_PHI_MODE_OPTIONS = ["latitude", "full"];
-const LOPEZ_ROS_MODE_OPTIONS = ["catenoid", "stacked"];
 const LSYSTEM_PRESET_OPTIONS = LSYSTEM_PRESETS;
 const DLA_SEED_MODE_OPTIONS = DLA_SEED_MODES;
 const DLA_LAUNCH_MODE_OPTIONS = DLA_LAUNCH_MODES;
@@ -53,20 +52,14 @@ const SHAPE_SPECIFIC = {
     num("torusKnotP", "p", 1, 12, 1),
     num("torusKnotQ", "q", 1, 12, 1),
   ],
-  chenGackstatter: [
-    num("minimalVSegments", "v segments", 16, 256, 1),
-    num("chenGackstatterRMin", "radius min", 0.05, 0.9, 0.01),
-    num("chenGackstatterRMax", "radius max", 0.1, 0.95, 0.01),
-    num("chenGackstatterStretchZ", "stretch Z", 0.2, 4, 0.05),
-  ],
-  lopezros: [
-    num("minimalVSegments", "v segments", 16, 256, 1),
-    select("lopezRosMode", "mode", LOPEZ_ROS_MODE_OPTIONS),
-    num("lopezRosSpan", "catenoid span", 0.4, 2.5, 0.05),
-    num("lopezRosDeform", "deform", -0.8, 0.8, 0.01),
-    num("lopezRosTwist", "twist", -Math.PI, Math.PI, 0.01),
-    num("lopezRosStackCount", "stack count", 2, 7, 1),
-    num("lopezRosStackSpacing", "neck span", 0.35, 5, 0.05),
+  catenoids: [
+    num("catenoidVSegments", "v segments", 16, 256, 1),
+    select("catenoidMode", "mode", ["catenoid", "stacked"]),
+    num("catenoidSpan", "span", 0.4, 2.5, 0.05),
+    num("catenoidDeform", "deform", -0.8, 0.8, 0.01),
+    num("catenoidTwist", "twist", -Math.PI, Math.PI, 0.01),
+    num("catenoidStackCount", "stack count", 2, 7, 1),
+    num("catenoidStackSpacing", "neck span", 0.35, 5, 0.05),
   ],
   gielis: [
     select("gielisPhiMode", "φ range", GIELIS_PHI_MODE_OPTIONS),
@@ -148,8 +141,8 @@ const NOISE_PARAMS = [
 
 const TEXTURE_PARAMS = [
   checkbox("glassEnabled", "material texture"),
-  num("glassMetalness", "metalness", 0, 1, 0.01),
-  num("glassRoughness", "roughness", 0, 1, 0.01),
+  num("glassMetalness", "glass metalness", 0, 1, 0.01),
+  num("glassRoughness", "glass roughness", 0, 1, 0.01),
   num("glassTransmission", "transmission", 0, 1, 0.01),
   num("glassIor", "index of reflection", 1, 2.33, 0.01),
   num("glassThickness", "thickness", 0, 5, 0.1),

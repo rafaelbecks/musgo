@@ -10,8 +10,7 @@ import {
 export const MORPH_SHAPES = [
   "torus",
   "torusknot",
-  "chenGackstatter",
-  "lopezros",
+  "catenoids",
   "gielis",
   "baschetLeaf",
   "lsystem",
@@ -22,8 +21,7 @@ export const MORPH_SHAPES = [
 export const SHAPE_LABELS = {
   torus: "torus",
   torusknot: "torus knot",
-  chenGackstatter: "Chen–Gackstätter",
-  lopezros: "López–Ros",
+  catenoids: "catenoids",
   gielis: "Gielis superformula",
   baschetLeaf: "Baschet leaf",
   lsystem: "L-system organism",
@@ -44,16 +42,13 @@ export const morphParams = {
   torusKnotRadialSegments: 64,
   torusKnotP: 2,
   torusKnotQ: 3,
-  minimalVSegments: 64,
-  chenGackstatterRMin: 0.22,
-  chenGackstatterRMax: 0.78,
-  chenGackstatterStretchZ: 1,
-  lopezRosSpan: 1.2,
-  lopezRosDeform: 0.35,
-  lopezRosTwist: 0,
-  lopezRosMode: "catenoid",
-  lopezRosStackCount: 3,
-  lopezRosStackSpacing: 1.0,
+  catenoidVSegments: 64,
+  catenoidSpan: 1.2,
+  catenoidDeform: 0.35,
+  catenoidTwist: 0,
+  catenoidMode: "catenoid",
+  catenoidStackCount: 3,
+  catenoidStackSpacing: 1.0,
   gielisA1: 1,
   gielisB1: 1,
   gielisM1: 6,
@@ -159,27 +154,29 @@ export const DEFAULT_MORPH_PARAMS = Object.freeze({ ...morphParams });
 export const MORPH_PARAM_KEYS = Object.keys(morphParams);
 
 export function clampMorphParams() {
+  if (morphParams.shape === "lopezros") {
+    morphParams.shape = "catenoids";
+  }
   if (!MORPH_SHAPES.includes(morphParams.shape)) {
     morphParams.shape = MORPH_SHAPES[0];
   }
+  migrateLegacyCatenoidParams();
   morphParams.noiseOctaves = Math.max(1, Math.min(5, Math.round(morphParams.noiseOctaves)));
   morphParams.torusKnotP = Math.max(1, Math.round(morphParams.torusKnotP));
   morphParams.torusKnotQ = Math.max(1, Math.round(morphParams.torusKnotQ));
-  morphParams.chenGackstatterRMin = Math.max(0.05, morphParams.chenGackstatterRMin);
-  morphParams.chenGackstatterRMax = Math.min(
-    0.95,
-    Math.max(morphParams.chenGackstatterRMin + 0.05, morphParams.chenGackstatterRMax)
-  );
-  morphParams.chenGackstatterStretchZ = Math.max(0.2, morphParams.chenGackstatterStretchZ);
-  if (!["catenoid", "stacked"].includes(morphParams.lopezRosMode)) {
-    morphParams.lopezRosMode =
-      morphParams.lopezRosMode === "stacked catenoids" ? "stacked" : "catenoid";
+  if (!["catenoid", "stacked"].includes(morphParams.catenoidMode)) {
+    morphParams.catenoidMode =
+      morphParams.catenoidMode === "stacked catenoids" ? "stacked" : "catenoid";
   }
-  morphParams.lopezRosStackCount = Math.max(
+  morphParams.catenoidStackCount = Math.max(
     2,
-    Math.min(7, Math.round(morphParams.lopezRosStackCount))
+    Math.min(7, Math.round(morphParams.catenoidStackCount))
   );
-  morphParams.lopezRosStackSpacing = Math.max(0.35, morphParams.lopezRosStackSpacing);
+  morphParams.catenoidStackSpacing = Math.max(0.35, morphParams.catenoidStackSpacing);
+  morphParams.catenoidVSegments = Math.max(
+    12,
+    Math.min(256, Math.round(morphParams.catenoidVSegments))
+  );
   for (const i of ["1", "2"]) {
     if (morphParams[`gielisA${i}`] === 0) morphParams[`gielisA${i}`] = 1e-3;
     if (morphParams[`gielisB${i}`] === 0) morphParams[`gielisB${i}`] = 1e-3;
@@ -312,4 +309,21 @@ function normalizeCustomTextureRole(role) {
 function normalizeCustomTextureWrap(wrap) {
   if (wrap === "clamp to edge" || wrap === "clamp") return "clamp";
   return "repeat";
+}
+
+function migrateLegacyCatenoidParams() {
+  const legacy = [
+    ["catenoidVSegments", "minimalVSegments"],
+    ["catenoidSpan", "lopezRosSpan"],
+    ["catenoidDeform", "lopezRosDeform"],
+    ["catenoidTwist", "lopezRosTwist"],
+    ["catenoidMode", "lopezRosMode"],
+    ["catenoidStackCount", "lopezRosStackCount"],
+    ["catenoidStackSpacing", "lopezRosStackSpacing"],
+  ];
+  for (const [next, prev] of legacy) {
+    if (morphParams[prev] !== undefined) {
+      morphParams[next] = morphParams[prev];
+    }
+  }
 }

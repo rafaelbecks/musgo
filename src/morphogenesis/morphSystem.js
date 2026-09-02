@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { GLTFExporter } from "three/addons/exporters/GLTFExporter.js";
+import { OBJExporter } from "three/addons/exporters/OBJExporter.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
@@ -23,16 +24,13 @@ const EXPORT_PARAM_KEYS = [
   "torusKnotRadialSegments",
   "torusKnotP",
   "torusKnotQ",
-  "minimalVSegments",
-  "chenGackstatterRMin",
-  "chenGackstatterRMax",
-  "chenGackstatterStretchZ",
-  "lopezRosSpan",
-  "lopezRosDeform",
-  "lopezRosTwist",
-  "lopezRosMode",
-  "lopezRosStackCount",
-  "lopezRosStackSpacing",
+  "catenoidVSegments",
+  "catenoidSpan",
+  "catenoidDeform",
+  "catenoidTwist",
+  "catenoidMode",
+  "catenoidStackCount",
+  "catenoidStackSpacing",
   "gielisA1",
   "gielisB1",
   "gielisM1",
@@ -300,6 +298,68 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
     texture.needsUpdate = true;
   }
 
+  let modelTextureSuspendedByWireframe = false;
+
+  function modelHasTexture() {
+    return (
+      morphParams.shape === "model" &&
+      !!activeModelTextureSlots?.some((slot) => slot.map || slot.normalMap)
+    );
+  }
+
+  function suspendModelTextureForWireframe() {
+    if (!modelHasTexture() || !morphParams.modelUseOriginalTexture) return false;
+    modelTextureSuspendedByWireframe = true;
+    morphParams.modelUseOriginalTexture = false;
+    if (mesh) applyMaterialState(mesh.material);
+    return true;
+  }
+
+  function restoreModelTextureAfterWireframe() {
+    if (!modelTextureSuspendedByWireframe) return false;
+    modelTextureSuspendedByWireframe = false;
+    morphParams.modelUseOriginalTexture = true;
+    if (mesh) applyMaterialState(mesh.material);
+    return true;
+  }
+
+  /**
+   * Align model texture with the current wireframe flag.
+   * - preferTexture: user picked a textured model → texture wins (wireframe off)
+   * - otherwise: respect wireframe (organism / manual toggle)
+   */
+  function reconcileModelTextureAndWireframe({ preferTexture = false } = {}) {
+    if (!modelHasTexture()) {
+      if (!viewerParams.wireframe && modelTextureSuspendedByWireframe) {
+        restoreModelTextureAfterWireframe();
+      }
+      return false;
+    }
+
+    if (preferTexture) {
+      if (viewerParams.wireframe) {
+        viewerParams.wireframe = false;
+        onViewerChange?.();
+      }
+      if (modelTextureSuspendedByWireframe) {
+        restoreModelTextureAfterWireframe();
+      } else if (!morphParams.modelUseOriginalTexture) {
+        morphParams.modelUseOriginalTexture = true;
+        if (mesh) applyMaterialState(mesh.material);
+      }
+      return true;
+    }
+
+    if (viewerParams.wireframe) {
+      return suspendModelTextureForWireframe();
+    }
+    return restoreModelTextureAfterWireframe();
+  }
+
+  function preferTexturedModelView() {
+    return reconcileModelTextureAndWireframe({ preferTexture: true });
+  }
+
   function loadCustomTexture(file) {
     return new Promise((resolve, reject) => {
       disposeCustomTexture();
@@ -395,13 +455,8 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
         : 0;
     const hasSurfaceMap = useCustomColor || useModelColor;
 
-    if ((glass || hasCustom || useModelColor) && viewerParams.wireframe) {
-      viewerParams.wireframe = false;
-      onViewerChange?.();
-    }
-
     material.side = getMorphSide(morphParams.side);
-    material.wireframe = hasSurfaceMap || hasCustom || glass ? false : viewerParams.wireframe;
+    material.wireframe = viewerParams.wireframe;
 
     _surfaceTint.set(morphParams.color);
     _surfaceTint.lerp(new THREE.Color(0xffffff), surfaceMix);
@@ -631,6 +686,7 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
         if (id !== loadId) return;
         activeModelTextureSlots = textureSlots;
         assignGeometry(geometry, materials);
+        reconcileModelTextureAndWireframe();
         builtKey = key;
       } catch (err) {
         if (id !== loadId) return;
@@ -748,26 +804,14 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
     applyNoiseDeform(mesh.geometry, morphParams, noiseMix, elapsed);
   }
 
-  async function exportMorph() {
-    if (!mesh) return { ok: false, reason: "No morphogenesis mesh." };
-
+  function exportBaseName() {
     const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const baseName =
-      morphParams.shape === "model"
-        ? `${(morphParams.modelFile || "model").replace(/\//g, "-")}-noise-${stamp}`
-        : `${morphParams.shape}-noise-${stamp}`;
-    const config = {
-      version: 1,
-      type: "morphogenesis",
-      noiseMix,
-      params: Object.fromEntries(EXPORT_PARAM_KEYS.map((k) => [k, morphParams[k]])),
-    };
+    return morphParams.shape === "model"
+      ? `${(morphParams.modelFile || "model").replace(/\//g, "-")}-noise-${stamp}`
+      : `${morphParams.shape}-noise-${stamp}`;
+  }
 
-    downloadBlob(
-      new Blob([JSON.stringify(config, null, 2)], { type: "application/json" }),
-      `${baseName}.json`
-    );
-
+  function prepareExportMesh() {
     const exportMesh = mesh.clone();
     exportMesh.updateMatrixWorld(true);
     exportMesh.geometry = mesh.geometry.clone();
@@ -775,7 +819,29 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
     exportMesh.position.set(0, 0, 0);
     exportMesh.rotation.set(0, 0, 0);
     exportMesh.scale.set(1, 1, 1);
+    return exportMesh;
+  }
 
+  function exportMorphJson() {
+    if (!mesh) return { ok: false, reason: "No morphogenesis mesh." };
+    const baseName = exportBaseName();
+    const config = {
+      version: 1,
+      type: "morphogenesis",
+      noiseMix,
+      params: Object.fromEntries(EXPORT_PARAM_KEYS.map((k) => [k, morphParams[k]])),
+    };
+    downloadBlob(
+      new Blob([JSON.stringify(config, null, 2)], { type: "application/json" }),
+      `${baseName}.json`
+    );
+    return { ok: true, baseName };
+  }
+
+  async function exportMorphGlb() {
+    if (!mesh) return { ok: false, reason: "No morphogenesis mesh." };
+    const baseName = exportBaseName();
+    const exportMesh = prepareExportMesh();
     const glb = await new Promise((resolve, reject) => {
       new GLTFExporter().parse(
         exportMesh,
@@ -787,10 +853,25 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
         { binary: true }
       );
     });
-
     exportMesh.geometry.dispose();
     downloadBlob(new Blob([glb], { type: "model/gltf-binary" }), `${baseName}.glb`);
     return { ok: true, baseName };
+  }
+
+  function exportMorphObj() {
+    if (!mesh) return { ok: false, reason: "No morphogenesis mesh." };
+    const baseName = exportBaseName();
+    const exportMesh = prepareExportMesh();
+    const obj = new OBJExporter().parse(exportMesh);
+    exportMesh.geometry.dispose();
+    downloadBlob(new Blob([obj], { type: "text/plain" }), `${baseName}.obj`);
+    return { ok: true, baseName };
+  }
+
+  async function exportMorph() {
+    const json = exportMorphJson();
+    if (!json.ok) return json;
+    return exportMorphGlb();
   }
 
   return {
@@ -801,6 +882,10 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
     applyMaterial: () => {
       if (mesh) applyMaterialState(mesh.material);
     },
+    suspendModelTextureForWireframe,
+    restoreModelTextureAfterWireframe,
+    reconcileModelTextureAndWireframe,
+    preferTexturedModelView,
     loadCustomTexture,
     loadModelFromFile,
     clearCustomTexture,
@@ -817,6 +902,9 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
     getNoiseMix,
     snapNoiseMix,
     exportMorph,
+    exportMorphGlb,
+    exportMorphObj,
+    exportMorphJson,
     isActive: () => !!mesh,
   };
 }
