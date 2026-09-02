@@ -111,8 +111,7 @@ function estimateFundamental(shape, analysis) {
   const bases = {
     torus: 65,
     torusknot: 55,
-    chenGackstatter: 62,
-    lopezros: 60,
+    catenoids: 60,
     gielis: 58,
     baschetLeaf: 70,
     lsystem: 66,

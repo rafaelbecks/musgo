@@ -209,7 +209,12 @@ function isUniformCavity({ deformation, samples }) {
 function detectChambers(samples, { deformation, meanMajor, acousticLayout, shape }) {
   if (samples.length === 0) return { chambers: [], assignments: [], mode: "empty" };
 
-  if (acousticLayout?.kind === "lopezRos" || shape === "lopezros") {
+  if (
+    acousticLayout?.kind === "catenoids" ||
+    acousticLayout?.kind === "lopezRos" ||
+    shape === "catenoids" ||
+    shape === "lopezros"
+  ) {
     if (acousticLayout?.segments?.length) {
       return detectLopezRosChambers(samples, acousticLayout, { deformation, meanMajor });
     }
@@ -754,7 +759,7 @@ function estimateTimbre(chambers, { noiseMix, deformation, mode }) {
     };
   }
 
-  if (mode === "lopezRos") {
+  if (mode === "lopezRos" || mode === "catenoids") {
     const chamberSpread = Math.min(1, (chambers.length - 1) / 6);
     const meanLump = chambers.reduce((s, c) => s + (c.lumpScore ?? 0), 0) / chambers.length;
     const modulation = Math.min(

@@ -1,10 +1,7 @@
 import * as THREE from "three";
 import { morphParams } from "./morphParams.js";
-import {
-  createChenGackstatterGeometry,
-  createLopezRosGeometry,
-} from "./minimalSurfaces.js";
 import { createGielisGeometry } from "./gielis.js";
+import { createCatenoidsGeometry } from "./catenoids.js";
 import { createBaschetLeafGeometry } from "./baschetLeaf/index.js";
 import { createLSystemGeometry } from "./lsystem/index.js";
 import { createDlaGeometry } from "./dla/index.js";
@@ -36,11 +33,8 @@ export function createMorphGeometry(shape, extent, params = morphParams) {
       );
     }
 
-    case "chenGackstatter":
-      return createChenGackstatterGeometry(extent, params);
-
-    case "lopezros":
-      return createLopezRosGeometry(extent, params);
+    case "catenoids":
+      return createCatenoidsGeometry(extent, params);
 
     case "gielis":
       return createGielisGeometry(extent, params);

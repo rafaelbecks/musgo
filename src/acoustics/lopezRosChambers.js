@@ -5,7 +5,7 @@ const AXIAL_BINS = 48;
  */
 export function detectLopezRosChambers(samples, acousticLayout, { deformation, meanMajor }) {
   if (!samples.length || !acousticLayout?.segments?.length) {
-    return { chambers: [], assignments: [], mode: "lopezRos" };
+    return { chambers: [], assignments: [], mode: "catenoids" };
   }
 
   const segments = acousticLayout.segments;
@@ -30,7 +30,7 @@ export function detectLopezRosChambers(samples, acousticLayout, { deformation, m
 
   const assignments = assignSamplesAxial(samples, chambers);
 
-  return { chambers, assignments, mode: "lopezRos" };
+  return { chambers, assignments, mode: "catenoids" };
 }
 
 function segmentToChamber(seg, id, label, kind, samples, deformation, meanMajor) {
