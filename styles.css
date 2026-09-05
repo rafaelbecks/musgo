@@ -383,6 +383,32 @@ textarea,
   height: 100% !important;
 }
 
+/* Three.js VRButton — keep within the viewer, above canvas */
+#viewer-mount .vr-button,
+#viewer-mount #VRButton {
+  position: absolute !important;
+  left: 50% !important;
+  bottom: 18px !important;
+  right: auto !important;
+  top: auto !important;
+  transform: translateX(-50%);
+  z-index: 6;
+  border: 1px solid var(--border) !important;
+  border-radius: 4px !important;
+  background: rgba(10, 10, 12, 0.85) !important;
+  color: var(--text) !important;
+  font-family: "IBM Plex Mono", monospace !important;
+  font-size: 12px !important;
+  letter-spacing: 0.04em !important;
+  opacity: 1 !important;
+  backdrop-filter: blur(6px);
+}
+
+#viewer-mount .vr-button:hover,
+#viewer-mount #VRButton:hover {
+  background: rgba(24, 24, 28, 0.95) !important;
+}
+
 .midi-legend {
   position: absolute;
   bottom: 12px;

@@ -31,7 +31,14 @@ export async function bootApp({ pendingOrganismFile = null } = {}) {
   const mount = document.getElementById("viewer-mount");
   const helpModal = createHelpModal({ showButton: false });
 
-  const sceneSystem = createSceneSystem({ mount, loading });
+  // Filled after morphSystem exists; VR framing reads the live mesh.
+  const focusHooks = { getMesh: () => null };
+
+  const sceneSystem = createSceneSystem({
+    mount,
+    loading,
+    getFocusMesh: () => focusHooks.getMesh(),
+  });
   const input = createInputSystem(sceneSystem.camera, sceneSystem.controls);
 
   const morphUiHooks = { refreshViewer: () => {} };
@@ -40,6 +47,7 @@ export async function bootApp({ pendingOrganismFile = null } = {}) {
     params,
     onViewerChange: () => morphUiHooks.refreshViewer(),
   });
+  focusHooks.getMesh = () => morphSystem.getAnalysisMesh();
 
   let analysisTimer = null;
   let analysisJob = 0;
@@ -434,7 +442,6 @@ export async function bootApp({ pendingOrganismFile = null } = {}) {
   let wasModulating = false;
 
   function animate() {
-    requestAnimationFrame(animate);
     const delta = Math.min(0.05, clock.elapsed ? (performance.now() - clock.elapsed) / 1000 : 0.016);
     clock.elapsed = performance.now();
 
@@ -450,17 +457,23 @@ export async function bootApp({ pendingOrganismFile = null } = {}) {
     const restoreViewerMod = modulationSystem.applyToParams(params, resolveModParam);
     const modulating = Boolean(restoreMorphMod || restoreViewerMod);
 
-    input.applyWalkMovement(delta);
-    cameraFocus.update();
-    // OrbitControls first, then MIDI zoom override (so damping doesn't fight us)
-    sceneSystem.controls.update();
-    const { rotated } = updateMidiSmoothing(delta, {
-      camera: sceneSystem.camera,
-      controls: sceneSystem.controls,
-    });
-    if (rotated || modulating || wasModulating) {
+    const inVr = sceneSystem.vr?.isPresenting?.() ?? false;
+    if (!inVr) {
+      input.applyWalkMovement(delta);
+      cameraFocus.update();
+      // OrbitControls first, then MIDI zoom override (so damping doesn't fight us)
+      sceneSystem.controls.update();
+      const { rotated } = updateMidiSmoothing(delta, {
+        camera: sceneSystem.camera,
+        controls: sceneSystem.controls,
+      });
+      if (rotated || modulating || wasModulating) {
+        morphSystem.applyTransform();
+      }
+    } else if (modulating || wasModulating) {
       morphSystem.applyTransform();
     }
+
     if (modulating || wasModulating) {
       morphSystem.applyLiveState();
     }
@@ -474,5 +487,6 @@ export async function bootApp({ pendingOrganismFile = null } = {}) {
     wasModulating = modulating;
   }
 
-  animate();
+  // WebXR requires setAnimationLoop (not requestAnimationFrame).
+  sceneSystem.setAnimationLoop(animate);
 }

@@ -4,8 +4,9 @@ import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
 import { EXRLoader } from "three/addons/loaders/EXRLoader.js";
 import { params } from "./config.js";
 import { createPostProcessing } from "./scene/postProcessing.js";
+import { createVrSystem } from "./scene/vr.js";
 
-export function createSceneSystem({ mount, loading } = {}) {
+export function createSceneSystem({ mount, loading, getFocusMesh } = {}) {
   const container = mount ?? document.body;
 
   const scene = new THREE.Scene();
@@ -260,7 +261,18 @@ export function createSceneSystem({ mount, loading } = {}) {
 
   const postProcessing = createPostProcessing({ renderer, scene, camera, params });
 
+  const vr = createVrSystem({
+    renderer,
+    scene,
+    camera,
+    controls,
+    mount: container,
+    getFocusMesh,
+  });
+
   function resize() {
+    // WebXR owns the drawing buffer size while presenting.
+    if (renderer.xr.isPresenting) return;
     const { clientWidth: w, clientHeight: h } = container;
     if (w === 0 || h === 0) return;
     camera.aspect = w / h;
@@ -280,7 +292,18 @@ export function createSceneSystem({ mount, loading } = {}) {
     controls,
     light,
     ambient,
-    render: () => postProcessing.render(),
+    vr,
+    render() {
+      // EffectComposer is not WebXR-safe; fall back to stereo render in VR.
+      if (renderer.xr.isPresenting) {
+        renderer.render(scene, camera);
+        return;
+      }
+      postProcessing.render();
+    },
+    setAnimationLoop(cb) {
+      renderer.setAnimationLoop(cb);
+    },
     loadEnvironment,
     loadEnvironmentFromFile,
     refreshCustomEnvironment,
@@ -291,8 +314,10 @@ export function createSceneSystem({ mount, loading } = {}) {
     resize,
     dispose() {
       ro.disconnect();
+      vr?.dispose?.();
       postProcessing.dispose();
       pmrem.dispose();
+      renderer.setAnimationLoop(null);
       renderer.dispose();
     },
   };
