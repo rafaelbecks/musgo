@@ -470,8 +470,11 @@ export async function bootApp({ pendingOrganismFile = null } = {}) {
       if (rotated || modulating || wasModulating) {
         morphSystem.applyTransform();
       }
-    } else if (modulating || wasModulating) {
-      morphSystem.applyTransform();
+    } else {
+      sceneSystem.vr.update();
+      if (modulating || wasModulating) {
+        morphSystem.applyTransform();
+      }
     }
 
     if (modulating || wasModulating) {
