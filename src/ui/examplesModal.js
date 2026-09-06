@@ -2,10 +2,6 @@
  * Examples modal — list + load .organism files from ./examples/
  */
 
-import * as THREE from "three";
-import { HTMLMesh } from "three/addons/interactive/HTMLMesh.js";
-import { InteractiveGroup } from "three/addons/interactive/InteractiveGroup.js";
-
 const EXAMPLES_INDEX_URL = "./examples/index.json";
 const EXAMPLES_BASE = "./examples/";
 
@@ -35,7 +31,6 @@ export function createExamplesModal({
   buttonParent = document.querySelector("#viewer-panel .panel-header"),
   showButton = true,
   onSelectExample,
-  getVrContext,
 } = {}) {
   const hasButton = showButton && buttonParent;
   let btn = null;
@@ -50,7 +45,7 @@ export function createExamplesModal({
     btn.innerHTML = `<ion-icon name="bug-outline"></ion-icon>`;
     buttonParent.appendChild(btn);
   } else if (!onSelectExample) {
-    return { open() {}, close() {}, destroy() {}, isOpen: () => false };
+    return { open() {}, close() {}, destroy() {} };
   }
 
   const modal = document.createElement("div");
@@ -75,15 +70,10 @@ export function createExamplesModal({
   `;
   document.body.appendChild(modal);
 
-  const contentEl = modal.querySelector(".examples-modal__content");
   const bodyEl = modal.querySelector("#examples-modal-body");
   const closeBtn = modal.querySelector(".help-modal__close");
   let loaded = false;
   let isOpen = false;
-  let vrLayout = false;
-
-  /** @type {{ group: import("three").Group, mesh: HTMLMesh } | null} */
-  let vrPanel = null;
 
   function orderExamples(files) {
     const pinnedSet = new Set(PINNED_EXAMPLES);
@@ -149,70 +139,19 @@ export function createExamplesModal({
     }
   }
 
-  function destroyVrPanel() {
-    if (!vrPanel) return;
-    vrPanel.group.parent?.remove(vrPanel.group);
-    vrPanel.mesh.dispose?.();
-    vrPanel = null;
-  }
-
-  function syncVrPanel() {
-    const ctx = getVrContext?.();
-    const presenting = Boolean(ctx?.isPresenting?.());
-    if (!isOpen || !vrLayout || !presenting || !ctx?.scene || !ctx?.renderer) {
-      destroyVrPanel();
-      return;
-    }
-
-    if (!vrPanel) {
-      const group = new InteractiveGroup();
-      group.listenToPointerEvents(ctx.renderer, ctx.camera);
-      if (ctx.controller0) group.listenToXRControllerEvents(ctx.controller0);
-      if (ctx.controller1) group.listenToXRControllerEvents(ctx.controller1);
-      ctx.scene.add(group);
-
-      const mesh = new HTMLMesh(contentEl);
-      mesh.name = "examples-html-mesh";
-      group.add(mesh);
-      vrPanel = { group, mesh };
-    }
-
-    // Float the panel in front of the headset / orbit rig.
-    const rig = ctx.rig;
-    const anchor = rig ?? ctx.camera;
-    anchor.updateWorldMatrix?.(true);
-    const worldPos = new THREE.Vector3();
-    const worldQuat = new THREE.Quaternion();
-    anchor.getWorldPosition(worldPos);
-    anchor.getWorldQuaternion(worldQuat);
-
-    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(worldQuat);
-    vrPanel.group.position.copy(worldPos).addScaledVector(forward, 1.15);
-    vrPanel.group.position.y += 0.05;
-    vrPanel.group.quaternion.copy(worldQuat);
-    vrPanel.mesh.scale.setScalar(1.35);
-  }
-
-  async function show({ vr = false } = {}) {
+  function show() {
     isOpen = true;
-    vrLayout = Boolean(vr);
     modal.hidden = false;
     modal.classList.add("is-open");
-    modal.classList.toggle("is-vr", vrLayout);
     loaded = false;
-    await loadList();
-    // Let layout settle so HTMLMesh can sample real dimensions.
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-    syncVrPanel();
-    if (!vrLayout) closeBtn.focus();
+    loadList();
+    closeBtn.focus();
   }
 
   function hide() {
     isOpen = false;
-    vrLayout = false;
-    modal.classList.remove("is-open", "is-vr");
+    modal.classList.remove("is-open");
     modal.hidden = true;
-    destroyVrPanel();
   }
 
   function onKeyDown(ev) {
@@ -236,12 +175,8 @@ export function createExamplesModal({
   return {
     open: show,
     close: hide,
-    isOpen: () => isOpen,
-    /** Keep the in-world HTML panel posed while VR orbiting. */
-    updateVrPanel: syncVrPanel,
     destroy() {
       window.removeEventListener("keydown", onKeyDown);
-      destroyVrPanel();
       btn?.remove();
       modal.remove();
     },

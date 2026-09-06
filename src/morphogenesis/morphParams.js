@@ -26,7 +26,7 @@ export const SHAPE_LABELS = {
   baschetLeaf: "Baschet leaf",
   lsystem: "L-system organism",
   dla: "DLA (moss / coral)",
-  model: "model",
+  model: "model collection",
 };
 
 export const morphParams = {

@@ -24,6 +24,7 @@ import {
   createNewOrganism,
   confirmDiscardUnsavedChanges,
   markOrganismBaseline,
+  setOrganismModelAssetHooks,
 } from "./organismState.js";
 import { pickImageFile } from "../ui/imageFilePicker.js";
 import * as TweakpaneRotationInputPlugin from "@0b5vr/tweakpane-plugin-rotation";
@@ -105,6 +106,9 @@ export async function setupMorphUI(
     });
   }
   installOrganismSaveShortcut();
+  setOrganismModelAssetHooks({
+    getForSave: () => morphSystem.getModelAssetForSave?.() ?? null,
+  });
   const models = await loadModelCatalog();
   const importedModels = [];
   let modelFolder = null;
@@ -130,6 +134,12 @@ export async function setupMorphUI(
     disposeModelControls();
     if (!modelFolder) return;
 
+    if (
+      morphParams.modelFile?.startsWith("imported/") &&
+      !importedModels.includes(morphParams.modelFile)
+    ) {
+      importedModels.push(morphParams.modelFile);
+    }
     if (!allModels().includes(morphParams.modelFile)) {
       morphParams.modelFile = models[0];
     }
@@ -144,28 +154,35 @@ export async function setupMorphUI(
       syncModelTextureFolder?.();
     });
 
-    modelImportButton = modelFolder.addButton({ title: "Import GLB / OBJ…" });
+    modelImportButton = modelFolder.addButton({ title: "Import GLB / OBJ / USDZ…" });
     modelImportButton.on("click", async () => {
       try {
-        const file = await pickModelFile();
-        const { modelFile } = await morphSystem.loadModelFromFile(file);
-        if (!importedModels.includes(modelFile)) {
-          importedModels.push(modelFile);
-        }
-        morphParams.shape = "model";
-        morphParams.modelFile = modelFile;
-        shapeInput.refresh();
-        buildModelControls();
-        syncShapeFolders();
-        await onChange?.();
-        morphSystem.preferTexturedModelView();
-        syncModelTextureFolder?.();
+        await importModelFile();
       } catch (err) {
         if (err?.message !== "File picker cancelled.") {
           console.error("[morph] failed to import model", err);
+          window.alert(err?.message || "Failed to import model.");
         }
       }
     });
+  }
+
+  async function importModelFile(file = null) {
+    const picked = file ?? (await pickModelFile());
+    const { modelFile } = await morphSystem.loadModelFromFile(picked);
+    if (!importedModels.includes(modelFile)) {
+      importedModels.push(modelFile);
+    }
+    morphParams.shape = "model";
+    morphParams.modelFile = modelFile;
+    shapeInput.refresh();
+    buildModelControls();
+    syncShapeFolders();
+    await onChange?.();
+    morphSystem.preferTexturedModelView();
+    syncModelTextureFolder?.();
+    syncOrganismDirty();
+    return modelFile;
   }
 
   const shapeFolders = {};
@@ -206,7 +223,7 @@ export async function setupMorphUI(
     }
   });
 
-  modelFolder = folder.addFolder({ title: "Model", expanded: true });
+  modelFolder = folder.addFolder({ title: "Model collection", expanded: true });
   buildModelControls();
 
   bind(folder, morphParams, "extent", { label: "extent", min: 0.5, max: 10, step: 0.1 }, onChange);
@@ -990,6 +1007,23 @@ export async function setupMorphUI(
 
   async function applyLoadedOrganism({ state, file, fileHandle = null }) {
     adoptLoadedOrganism({ state, file, fileHandle });
+
+    if (state.modelAsset) {
+      try {
+        const { modelFile } = await morphSystem.loadModelAssetFromOrganism(
+          state.modelAsset
+        );
+        if (!importedModels.includes(modelFile)) {
+          importedModels.push(modelFile);
+        }
+        morphParams.modelFile = modelFile;
+        morphParams.shape = "model";
+      } catch (err) {
+        console.error("[organism] failed to load embedded model", err);
+        window.alert(err?.message || "Failed to load embedded model from organism.");
+      }
+    }
+
     buildModelControls();
     syncShapeFolders();
     syncGlassFolder();
@@ -1054,6 +1088,7 @@ export async function setupMorphUI(
     newOrganism,
     saveOrganism: () => saveOrganismFile(),
     saveOrganismAs: () => saveOrganismFile({ forcePicker: true }),
+    importModel: () => importModelFile(),
     async loadOrganismFile(file) {
       const state = await readOrganismFile(file);
       await applyLoadedOrganism({ state, file, fileHandle: null });

@@ -69,12 +69,20 @@ const DEFAULT_SPECIMEN_LABEL = "specimen: no name";
  * } | null} */
 let midiHooks = null;
 
+/** @type {{ getForSave: () => object | null } | null} */
+let modelAssetHooks = null;
+
 /**
  * Register MIDI serialize/apply hooks (from tools panel).
  * Lets .organism files store zoom/smoothing/mapping/device prefs.
  */
 export function setOrganismMidiHooks(hooks) {
   midiHooks = hooks;
+}
+
+/** Register embedded-model serialize hook (from morph system). */
+export function setOrganismModelAssetHooks(hooks) {
+  modelAssetHooks = hooks;
 }
 
 /** Restore morph / viewer / underwater to factory defaults (before file merge). */
@@ -188,6 +196,8 @@ export function serializeOrganism({ id = session.id ?? createOrganismId() } = {}
   };
   const midi = midiHooks?.serialize?.();
   if (midi) state.midi = midi;
+  const modelAsset = modelAssetHooks?.getForSave?.();
+  if (modelAsset) state.modelAsset = modelAsset;
   return state;
 }
 

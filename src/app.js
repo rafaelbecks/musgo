@@ -31,21 +31,13 @@ export async function bootApp({ pendingOrganismFile = null } = {}) {
   const mount = document.getElementById("viewer-mount");
   const helpModal = createHelpModal({ showButton: false });
 
-  // Filled after morphSystem / examples modal exist.
+  // Filled after morphSystem exists; VR framing reads the live mesh.
   const focusHooks = { getMesh: () => null };
-  const vrUiHooks = {
-    onOpenExamples: () => {},
-    isExamplesOpen: () => false,
-    onExamplesClosed: () => {},
-  };
 
   const sceneSystem = createSceneSystem({
     mount,
     loading,
     getFocusMesh: () => focusHooks.getMesh(),
-    onOpenExamples: () => vrUiHooks.onOpenExamples(),
-    isExamplesOpen: () => vrUiHooks.isExamplesOpen(),
-    onExamplesClosed: () => vrUiHooks.onExamplesClosed(),
   });
   const input = createInputSystem(sceneSystem.camera, sceneSystem.controls);
 
@@ -354,7 +346,6 @@ export async function bootApp({ pendingOrganismFile = null } = {}) {
 
   const examplesModal = createExamplesModal({
     showButton: false,
-    getVrContext: () => sceneSystem.vr?.getContext?.(),
     onSelectExample: async (file) => {
       try {
         await toolsPanel.loadOrganismFile(file);
@@ -368,23 +359,17 @@ export async function bootApp({ pendingOrganismFile = null } = {}) {
     },
   });
 
-  vrUiHooks.onOpenExamples = () => {
-    examplesModal.open({ vr: true });
-  };
-  vrUiHooks.isExamplesOpen = () => examplesModal.isOpen();
-  vrUiHooks.onExamplesClosed = () => examplesModal.close();
-
   createAppMenu({
     actions: {
       new: () => toolsPanel.newOrganism(),
       open: () => toolsPanel.openOrganism(),
       save: () => toolsPanel.saveOrganism(),
       saveAs: () => toolsPanel.saveOrganismAs(),
+      importModel: () => toolsPanel.importModel(),
       exportGlb: () => morphSystem.exportMorphGlb(),
       exportObj: () => morphSystem.exportMorphObj(),
       exportJson: () => morphSystem.exportMorphJson(),
-      examples: () =>
-        examplesModal.open({ vr: sceneSystem.vr?.isPresenting?.() ?? false }),
+      examples: () => examplesModal.open(),
       about: () => helpModal.open(),
       isWireframe: () => params.wireframe,
       isGrid: () => params.showGrid,
@@ -488,7 +473,6 @@ export async function bootApp({ pendingOrganismFile = null } = {}) {
       }
     } else {
       sceneSystem.vr.update();
-      examplesModal.updateVrPanel?.();
       if (modulating || wasModulating) {
         morphSystem.applyTransform();
       }

@@ -1324,5 +1324,9 @@ export function createToolsPanel({
       await morphUiReady;
       return morphUi.saveOrganismAs();
     },
+    async importModel() {
+      await morphUiReady;
+      return morphUi.importModel();
+    },
   };
 }

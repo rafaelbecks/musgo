@@ -3,6 +3,7 @@ import { GLTFExporter } from "three/addons/exporters/GLTFExporter.js";
 import { OBJExporter } from "three/addons/exporters/OBJExporter.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
+import { USDLoader } from "three/addons/loaders/USDLoader.js";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { morphParams } from "./morphParams.js";
@@ -11,6 +12,7 @@ import {
   applyNoiseDeform,
   captureBaseGeometry,
 } from "./noiseDeform.js";
+import { modelFileFormat } from "../ui/modelFilePicker.js";
 
 const EXPORT_PARAM_KEYS = [
   "shape",
@@ -119,6 +121,32 @@ function downloadBlob(blob, filename) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+function base64ToArrayBuffer(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+function sanitizeModelBaseName(name) {
+  return (
+    String(name ?? "model")
+      .replace(/\.(glb|obj|usdz)$/i, "")
+      .replace(/[^\w.-]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "model"
+  );
 }
 
 function createGlbLoader() {
@@ -597,6 +625,9 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
   }
 
   const objLoader = new OBJLoader();
+  const usdLoader = new USDLoader();
+  /** @type {Map<string, { format: string, fileName: string, data: ArrayBuffer }>} */
+  const importedSourceStore = new Map();
 
   function resolveModelAsset(modelFile, asset) {
     modelAssetCache.set(modelFile, {
@@ -631,7 +662,87 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
         return;
       }
 
+      if (format === "usdz") {
+        usdLoader.load(
+          url,
+          onLoaded,
+          undefined,
+          (err) => reject(normalizeUsdzError(err))
+        );
+        return;
+      }
+
       glbLoader.load(url, (gltf) => onLoaded(gltf.scene), undefined, reject);
+    });
+  }
+
+  function normalizeUsdzError(err) {
+    const msg = String(err?.message || err || "");
+    if (
+      /Cannot set properties of undefined/i.test(msg) ||
+      /Invalid USDZ|Failed to parse root layer|USDC/i.test(msg)
+    ) {
+      return new Error(
+        "Couldn’t load this USDZ (often binary USDC from Object Capture). Try exporting GLB from Blender, or use a newer Three.js USD loader."
+      );
+    }
+    return err instanceof Error ? err : new Error(msg || "USDZ load failed");
+  }
+
+  /**
+   * Prefer parsing from bytes (needed for reliable USDZ / USDC).
+   */
+  function loadModelRootFromBuffer(buffer, format) {
+    return new Promise((resolve, reject) => {
+      const onLoaded = (root) => {
+        try {
+          const asset = extractModelAsset(root);
+          if (!asset) {
+            reject(new Error("No mesh in model file"));
+            return;
+          }
+          resolve(asset);
+        } catch (err) {
+          reject(err);
+        }
+      };
+
+      try {
+        if (format === "obj") {
+          const text = new TextDecoder().decode(buffer);
+          onLoaded(objLoader.parse(text));
+          return;
+        }
+
+        if (format === "usdz") {
+          // three ≥ 0.185: real USDC crate support. Geometry is sync; textures async.
+          let group = null;
+          let settled = false;
+          const finish = (root) => {
+            if (settled) return;
+            settled = true;
+            onLoaded(root);
+          };
+          group = usdLoader.parse(
+            buffer,
+            "",
+            (g) => finish(g),
+            (err) => {
+              console.warn("[morph] USDZ texture load issue:", err);
+              if (group) finish(group);
+              else reject(normalizeUsdzError(err));
+            }
+          );
+          if (!group) {
+            reject(new Error("USDLoader returned empty"));
+          }
+          return;
+        }
+
+        glbLoader.parse(buffer, "", (gltf) => onLoaded(gltf.scene), reject);
+      } catch (err) {
+        reject(format === "usdz" ? normalizeUsdzError(err) : err);
+      }
     });
   }
 
@@ -649,29 +760,85 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
       });
     }
 
+    const embedded = importedSourceStore.get(modelFile);
+    if (embedded) {
+      return loadModelRootFromBuffer(embedded.data, embedded.format).then((asset) =>
+        resolveModelAsset(modelFile, asset)
+      );
+    }
+
     return loadModelRootFromUrl(`./glb/${modelFile}.glb`, "glb").then((asset) =>
       resolveModelAsset(modelFile, asset)
     );
   }
 
-  function loadModelFromFile(file) {
-    const baseName = String(file.name ?? "model")
-      .replace(/\.(glb|obj)$/i, "")
-      .replace(/[^\w.-]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "model";
-    const modelFile = `imported/${baseName}`;
-    const format = /\.obj$/i.test(file.name) ? "obj" : "glb";
-    const objectUrl = URL.createObjectURL(file);
+  function storeImportedSource(modelFile, { format, fileName, data }) {
+    importedSourceStore.set(modelFile, {
+      format,
+      fileName,
+      data,
+    });
+  }
 
-    return loadModelRootFromUrl(objectUrl, format)
-      .then((asset) => {
-        URL.revokeObjectURL(objectUrl);
-        return { modelFile, asset: resolveModelAsset(modelFile, asset) };
-      })
-      .catch((err) => {
-        URL.revokeObjectURL(objectUrl);
-        throw err;
-      });
+  async function loadModelFromFile(file) {
+    const format = modelFileFormat(file);
+    const baseName = sanitizeModelBaseName(file.name);
+    const modelFile = `imported/${baseName}`;
+    const data = await file.arrayBuffer();
+
+    const asset = await loadModelRootFromBuffer(data, format);
+    storeImportedSource(modelFile, {
+      format,
+      fileName: file.name || `${baseName}.${format}`,
+      data,
+    });
+    return { modelFile, asset: resolveModelAsset(modelFile, asset) };
+  }
+
+  /**
+   * Embeddable payload for .organism save (imported models only).
+   * @returns {{ format: string, fileName: string, encoding: string, data: string, modelFile: string } | null}
+   */
+  function getModelAssetForSave() {
+    if (morphParams.shape !== "model") return null;
+    const modelFile = morphParams.modelFile;
+    if (!modelFile || !String(modelFile).startsWith("imported/")) return null;
+    const stored = importedSourceStore.get(modelFile);
+    if (!stored?.data) return null;
+    return {
+      modelFile,
+      format: stored.format,
+      fileName: stored.fileName,
+      encoding: "base64",
+      data: arrayBufferToBase64(stored.data),
+    };
+  }
+
+  /**
+   * Restore an embedded model from a .organism `modelAsset` block.
+   * @returns {Promise<{ modelFile: string }>}
+   */
+  async function loadModelAssetFromOrganism(modelAsset) {
+    if (!modelAsset?.data) {
+      throw new Error("Organism modelAsset is missing data.");
+    }
+    const format = modelAsset.format || "glb";
+    const fileName =
+      modelAsset.fileName ||
+      `${sanitizeModelBaseName(modelAsset.modelFile || "model")}.${format}`;
+    const modelFile =
+      modelAsset.modelFile ||
+      `imported/${sanitizeModelBaseName(fileName)}`;
+    const data =
+      modelAsset.encoding === "base64"
+        ? base64ToArrayBuffer(modelAsset.data)
+        : modelAsset.data;
+
+    storeImportedSource(modelFile, { format, fileName, data });
+    // Drop stale geometry so rebuild pulls from the fresh source.
+    modelAssetCache.delete(modelFile);
+    await loadModelAsset(modelFile);
+    return { modelFile };
   }
 
   async function rebuildGeometry(force = false) {
@@ -888,6 +1055,8 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
     preferTexturedModelView,
     loadCustomTexture,
     loadModelFromFile,
+    loadModelAssetFromOrganism,
+    getModelAssetForSave,
     clearCustomTexture,
     refreshCustomTexture,
     hasCustomTexture: () => !!customTexture,

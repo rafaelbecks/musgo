@@ -23,6 +23,7 @@ export function createAppMenu({
       items: [
         { id: "new", label: "New", shortcut: "⌘N", icon: "add-outline" },
         { id: "open", label: "Open…", shortcut: "⌘O", icon: "folder-open-outline" },
+        { id: "importModel", label: "Import model…", icon: "cube-outline" },
         { id: "save", label: "Save", shortcut: "⌘S", icon: "save-outline" },
         { id: "saveAs", label: "Save As…", icon: "download-outline" },
         { type: "separator" },

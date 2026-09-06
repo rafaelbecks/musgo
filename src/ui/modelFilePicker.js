@@ -1,4 +1,4 @@
-const MODEL_ACCEPT = ".glb,.obj,model/gltf-binary";
+const MODEL_ACCEPT = ".glb,.obj,.usdz,model/gltf-binary,model/vnd.usdz+zip";
 
 const MODEL_OPEN_OPTS = {
   types: [
@@ -7,6 +7,7 @@ const MODEL_OPEN_OPTS = {
       accept: {
         "model/gltf-binary": [".glb"],
         "model/obj": [".obj"],
+        "model/vnd.usdz+zip": [".usdz"],
       },
     },
   ],
@@ -22,15 +23,19 @@ export function supportsModelFilePicker() {
 
 export function isModelFile(file) {
   if (!file) return false;
-  return /\.(glb|obj)$/i.test(file.name);
+  return /\.(glb|obj|usdz)$/i.test(file.name);
 }
 
+/** @returns {"glb" | "obj" | "usdz"} */
 export function modelFileFormat(file) {
-  return /\.obj$/i.test(file?.name ?? "") ? "obj" : "glb";
+  const name = file?.name ?? "";
+  if (/\.obj$/i.test(name)) return "obj";
+  if (/\.usdz$/i.test(name)) return "usdz";
+  return "glb";
 }
 
 /**
- * Open a file picker for GLB / OBJ models.
+ * Open a file picker for GLB / OBJ / USDZ models.
  * @returns {Promise<File>}
  */
 export async function pickModelFile() {
@@ -69,7 +74,7 @@ function pickModelFileInput() {
         return;
       }
       if (!isModelFile(file)) {
-        reject(new Error("Please choose a GLB or OBJ file."));
+        reject(new Error("Please choose a GLB, OBJ, or USDZ file."));
         return;
       }
       resolve(file);

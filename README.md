@@ -26,7 +26,7 @@ Procedural families available in the morphogenesis UI:
 - **Baschet leaf** — folded-metal leaf outline lofted into a resonator shell
 - **L-system organism** — rewrite grammars interpreted by a 3D turtle into tapered tubes (presets: shrimp, anthropod, plant/fern, bush, algae, dragon)
 - **DLA (moss / coral)** — diffusion-limited aggregation: random walkers stick into branched clusters; seed, launch, stickiness, neighbor rules, and flow biases shape mossy / coral forms. Element shapes (sphere, box, polyhedra, cone, cylinder) with optional random orientation; noise can deform the whole model or each element independently
-- **Loaded GLB** — external models from `cosos/`
+- **Loaded GLB** — external models from `cosos/` / imported GLB · OBJ · USDZ (can embed in `.organism`)
 
 ## Acoustic model (torus-first)
 
@@ -52,6 +52,8 @@ npm start
 
 Open [http://localhost:9990](http://localhost:9990)
 
+**Meta Quest VR** — WebXR immersive view; see [docs/vr-meta-quest.md](docs/vr-meta-quest.md).
+
 **With audio** — see [supercollider/README.md](supercollider/README.md):
 
 ```bash
@@ -69,6 +71,7 @@ Evaluate `supercollider/ResonantTorus.scd` in the SuperCollider IDE, then connec
 
 **Stack**
 - [Three.js](https://threejs.org/) — 3D viewer
+- [WebXR](https://threejs.org/docs/#VRButton) — Meta Quest VR ([docs](docs/vr-meta-quest.md))
 - [Tweakpane](https://tweakpane.github.io/docs/) — parameter UI
 - [SuperCollider](https://supercollider.github.io/) — exciter-driven chamber network (tube resonators + waveguide links)
 - [Web MIDI API](https://developer.mozilla.org/en-US/docs/Web/API/Web_MIDI_API) — live pitch and trigger
