@@ -2,8 +2,20 @@
  * Examples modal — list + load .organism files from ./examples/
  */
 
+import * as THREE from "three";
+import { HTMLMesh } from "three/addons/interactive/HTMLMesh.js";
+import { InteractiveGroup } from "three/addons/interactive/InteractiveGroup.js";
+
 const EXAMPLES_INDEX_URL = "./examples/index.json";
 const EXAMPLES_BASE = "./examples/";
+
+/** Keep these at the top of the list (order preserved from index.json). */
+export const PINNED_EXAMPLES = [
+  "mandibula-dorada.organism",
+  "mandibula-plateada.organism",
+  "craneo-morado.organism",
+  "craneo-dorado.organism",
+];
 
 const CLOSE_ICON_SVG = `
 <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -23,6 +35,7 @@ export function createExamplesModal({
   buttonParent = document.querySelector("#viewer-panel .panel-header"),
   showButton = true,
   onSelectExample,
+  getVrContext,
 } = {}) {
   const hasButton = showButton && buttonParent;
   let btn = null;
@@ -37,7 +50,7 @@ export function createExamplesModal({
     btn.innerHTML = `<ion-icon name="bug-outline"></ion-icon>`;
     buttonParent.appendChild(btn);
   } else if (!onSelectExample) {
-    return { open() {}, close() {}, destroy() {} };
+    return { open() {}, close() {}, destroy() {}, isOpen: () => false };
   }
 
   const modal = document.createElement("div");
@@ -62,10 +75,26 @@ export function createExamplesModal({
   `;
   document.body.appendChild(modal);
 
+  const contentEl = modal.querySelector(".examples-modal__content");
   const bodyEl = modal.querySelector("#examples-modal-body");
   const closeBtn = modal.querySelector(".help-modal__close");
   let loaded = false;
   let isOpen = false;
+  let vrLayout = false;
+
+  /** @type {{ group: import("three").Group, mesh: HTMLMesh } | null} */
+  let vrPanel = null;
+
+  function orderExamples(files) {
+    const pinnedSet = new Set(PINNED_EXAMPLES);
+    const pinned = PINNED_EXAMPLES.filter((name) => files.includes(name));
+    const rest = files
+      .filter((name) => !pinnedSet.has(name))
+      .sort((a, b) =>
+        String(a).localeCompare(String(b), undefined, { sensitivity: "base" })
+      );
+    return [...pinned, ...rest];
+  }
 
   async function loadList() {
     if (loaded) return;
@@ -80,13 +109,11 @@ export function createExamplesModal({
         return;
       }
 
-      const sorted = [...files].sort((a, b) =>
-        String(a).localeCompare(String(b), undefined, { sensitivity: "base" })
-      );
+      const ordered = orderExamples(files.map(String));
 
       const list = document.createElement("ul");
       list.className = "examples-modal__list";
-      for (const name of sorted) {
+      for (const name of ordered) {
         const li = document.createElement("li");
         const itemBtn = document.createElement("button");
         itemBtn.type = "button";
@@ -122,19 +149,70 @@ export function createExamplesModal({
     }
   }
 
-  function show() {
+  function destroyVrPanel() {
+    if (!vrPanel) return;
+    vrPanel.group.parent?.remove(vrPanel.group);
+    vrPanel.mesh.dispose?.();
+    vrPanel = null;
+  }
+
+  function syncVrPanel() {
+    const ctx = getVrContext?.();
+    const presenting = Boolean(ctx?.isPresenting?.());
+    if (!isOpen || !vrLayout || !presenting || !ctx?.scene || !ctx?.renderer) {
+      destroyVrPanel();
+      return;
+    }
+
+    if (!vrPanel) {
+      const group = new InteractiveGroup();
+      group.listenToPointerEvents(ctx.renderer, ctx.camera);
+      if (ctx.controller0) group.listenToXRControllerEvents(ctx.controller0);
+      if (ctx.controller1) group.listenToXRControllerEvents(ctx.controller1);
+      ctx.scene.add(group);
+
+      const mesh = new HTMLMesh(contentEl);
+      mesh.name = "examples-html-mesh";
+      group.add(mesh);
+      vrPanel = { group, mesh };
+    }
+
+    // Float the panel in front of the headset / orbit rig.
+    const rig = ctx.rig;
+    const anchor = rig ?? ctx.camera;
+    anchor.updateWorldMatrix?.(true);
+    const worldPos = new THREE.Vector3();
+    const worldQuat = new THREE.Quaternion();
+    anchor.getWorldPosition(worldPos);
+    anchor.getWorldQuaternion(worldQuat);
+
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(worldQuat);
+    vrPanel.group.position.copy(worldPos).addScaledVector(forward, 1.15);
+    vrPanel.group.position.y += 0.05;
+    vrPanel.group.quaternion.copy(worldQuat);
+    vrPanel.mesh.scale.setScalar(1.35);
+  }
+
+  async function show({ vr = false } = {}) {
     isOpen = true;
+    vrLayout = Boolean(vr);
     modal.hidden = false;
     modal.classList.add("is-open");
+    modal.classList.toggle("is-vr", vrLayout);
     loaded = false;
-    loadList();
-    closeBtn.focus();
+    await loadList();
+    // Let layout settle so HTMLMesh can sample real dimensions.
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    syncVrPanel();
+    if (!vrLayout) closeBtn.focus();
   }
 
   function hide() {
     isOpen = false;
-    modal.classList.remove("is-open");
+    vrLayout = false;
+    modal.classList.remove("is-open", "is-vr");
     modal.hidden = true;
+    destroyVrPanel();
   }
 
   function onKeyDown(ev) {
@@ -158,8 +236,12 @@ export function createExamplesModal({
   return {
     open: show,
     close: hide,
+    isOpen: () => isOpen,
+    /** Keep the in-world HTML panel posed while VR orbiting. */
+    updateVrPanel: syncVrPanel,
     destroy() {
       window.removeEventListener("keydown", onKeyDown);
+      destroyVrPanel();
       btn?.remove();
       modal.remove();
     },

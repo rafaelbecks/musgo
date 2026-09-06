@@ -6,7 +6,14 @@ import { params } from "./config.js";
 import { createPostProcessing } from "./scene/postProcessing.js";
 import { createVrSystem } from "./scene/vr.js";
 
-export function createSceneSystem({ mount, loading, getFocusMesh } = {}) {
+export function createSceneSystem({
+  mount,
+  loading,
+  getFocusMesh,
+  onOpenExamples,
+  isExamplesOpen,
+  onExamplesClosed,
+} = {}) {
   const container = mount ?? document.body;
 
   const scene = new THREE.Scene();
@@ -268,6 +275,9 @@ export function createSceneSystem({ mount, loading, getFocusMesh } = {}) {
     controls,
     mount: container,
     getFocusMesh,
+    onOpenExamples,
+    isExamplesOpen,
+    onExamplesClosed,
   });
 
   function resize() {

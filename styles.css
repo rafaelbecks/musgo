@@ -1272,6 +1272,38 @@ body.is-splash {
   gap: 8px;
 }
 
+/* VR: pack into 3 rows (column-major) so Quest HUD doesn't need scrolling */
+.examples-modal.is-vr .examples-modal__content {
+  max-width: min(1120px, 96vw);
+  width: min(1120px, 96vw);
+  max-height: none;
+}
+
+.examples-modal.is-vr .examples-modal__body {
+  overflow: hidden;
+  max-height: none;
+}
+
+.examples-modal.is-vr .examples-modal__list {
+  grid-template-columns: unset;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(3, auto);
+  grid-auto-columns: minmax(140px, 1fr);
+  gap: 6px;
+}
+
+.examples-modal.is-vr .examples-modal__item {
+  padding: 8px 10px;
+}
+
+.examples-modal.is-vr .examples-modal__item-name {
+  font-size: 13px;
+}
+
+.examples-modal.is-vr .examples-modal__item-file {
+  font-size: 10px;
+}
+
 .examples-modal__item {
   width: 100%;
   display: flex;

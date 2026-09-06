@@ -6,6 +6,9 @@ import { VRButton } from "three/addons/webxr/VRButton.js";
  * Controllers / hand pinch mirror desktop OrbitControls:
  * - one-hand select + move → orbit
  * - two-hand select (pinch distance) → zoom
+ * Face buttons (Quest):
+ * - X alone → examples modal
+ * - X + A → exit VR
  * @see https://threejs.org/docs/#VRButton
  * @see https://threejs.org/manual/en/how-to-create-vr-content.html
  */
@@ -16,6 +19,9 @@ export function createVrSystem({
   controls,
   mount,
   getFocusMesh,
+  onOpenExamples,
+  isExamplesOpen,
+  onExamplesClosed,
 } = {}) {
   renderer.xr.enabled = true;
 
@@ -31,6 +37,10 @@ export function createVrSystem({
 
   let saved = null;
   let prevPinchDist = 0;
+
+  // Quest face buttons: buttons[4] = X (left) / A (right)
+  let prevX = false;
+  let xChordUsed = false;
 
   const controller0 = renderer.xr.getController(0);
   const controller1 = renderer.xr.getController(1);
@@ -135,7 +145,59 @@ export function createVrSystem({
     camera.quaternion.identity();
   }
 
+  function readFaceButtons() {
+    const session = renderer.xr.getSession?.();
+    let x = false;
+    let a = false;
+    if (!session) return { x, a };
+    for (const source of session.inputSources) {
+      const pressed = Boolean(source.gamepad?.buttons?.[4]?.pressed);
+      if (!pressed) continue;
+      if (source.handedness === "left") x = true;
+      else if (source.handedness === "right") a = true;
+      else {
+        // Fallback if handedness is missing: treat first as X, second as A
+        if (!x) x = true;
+        else a = true;
+      }
+    }
+    return { x, a };
+  }
+
+  function endVrSession() {
+    onExamplesClosed?.();
+    const session = renderer.xr.getSession?.();
+    session?.end?.();
+  }
+
+  function updateFaceButtons() {
+    const { x, a } = readFaceButtons();
+
+    if (x && a) {
+      if (!xChordUsed) {
+        xChordUsed = true;
+        endVrSession();
+      }
+    }
+
+    if (x && !prevX) {
+      xChordUsed = false;
+    }
+
+    if (prevX && !x) {
+      if (!xChordUsed) {
+        if (isExamplesOpen?.()) onExamplesClosed?.();
+        else onOpenExamples?.();
+      }
+      xChordUsed = false;
+    }
+
+    prevX = x;
+  }
+
   function onSelectStart(event) {
+    // While the examples panel is open, let InteractiveGroup own the select.
+    if (isExamplesOpen?.()) return;
     const controller = event.target;
     controller.userData.dragging = true;
     controller.userData.prevPos.copy(controller.position);
@@ -149,6 +211,8 @@ export function createVrSystem({
   }
 
   function updateOrbitFromControllers() {
+    if (isExamplesOpen?.()) return;
+
     const d0 = controller0.userData.dragging;
     const d1 = controller1.userData.dragging;
 
@@ -190,10 +254,15 @@ export function createVrSystem({
     rig.add(camera);
     frameContentForVr();
     setRaysVisible(true);
+    document.body.classList.add("is-vr-presenting");
+    prevX = false;
+    xChordUsed = false;
   }
 
   function onSessionEnd() {
+    document.body.classList.remove("is-vr-presenting");
     setRaysVisible(false);
+    onExamplesClosed?.();
     // Carry the VR orbit framing back to desktop OrbitControls
     offset.setFromSpherical(spherical);
     const endPos = controls.target.clone().add(offset);
@@ -204,6 +273,8 @@ export function createVrSystem({
       saved.target.copy(controls.target);
     }
     restoreDesktopView();
+    prevX = false;
+    xChordUsed = false;
   }
 
   controller0.addEventListener("selectstart", onSelectStart);
@@ -241,12 +312,26 @@ export function createVrSystem({
   return {
     button: () => button,
     isPresenting: () => renderer.xr.isPresenting,
+    rig,
+    controller0,
+    controller1,
+    getContext: () => ({
+      scene,
+      camera,
+      renderer,
+      rig,
+      controller0,
+      controller1,
+      isPresenting: () => renderer.xr.isPresenting,
+    }),
     update() {
       if (!renderer.xr.isPresenting) return;
+      updateFaceButtons();
       updateOrbitFromControllers();
     },
     dispose() {
       disposed = true;
+      document.body.classList.remove("is-vr-presenting");
       renderer.xr.removeEventListener("sessionstart", onSessionStart);
       renderer.xr.removeEventListener("sessionend", onSessionEnd);
       controller0.removeEventListener("selectstart", onSelectStart);
