@@ -1088,7 +1088,7 @@ export async function setupMorphUI(
     newOrganism,
     saveOrganism: () => saveOrganismFile(),
     saveOrganismAs: () => saveOrganismFile({ forcePicker: true }),
-    importModel: () => importModelFile(),
+    importModel: (file = null) => importModelFile(file),
     async loadOrganismFile(file, { fileHandle = null, confirmDiscard = false } = {}) {
       if (confirmDiscard && !confirmDiscardUnsavedChanges()) {
         throw new Error("Cancelled.");

@@ -19,6 +19,7 @@ import { midiNoteToPitchMultiplier } from "./midi/notePitch.js";
 import { updateMidiSmoothing } from "./midi/midiCamera.js";
 import { createHelpModal } from "./ui/helpModal.js";
 import { createExamplesModal } from "./ui/examplesModal.js";
+import { createFotogrametriasModal } from "./ui/fotogrametriasModal.js";
 import { createAppMenu } from "./ui/appMenu.js";
 import { createUnderwaterSystem } from "./underwater/underwaterSystem.js";
 import { modulationSystem } from "./modulation/modulationSystem.js";
@@ -362,6 +363,20 @@ export async function bootApp({
     },
   });
 
+  const fotogrametriasModal = createFotogrametriasModal({
+    onSelectModel: async (file) => {
+      try {
+        await toolsPanel.importModel(file);
+        await morphSystem.sync();
+        scheduleAnalysis();
+        underwaterSystem?.refreshFromMorph();
+      } catch (err) {
+        console.error("[fotogrametrias] load failed", err);
+        window.alert(err?.message || "No se pudo cargar el modelo.");
+      }
+    },
+  });
+
   createAppMenu({
     actions: {
       new: () => toolsPanel.newOrganism(),
@@ -373,6 +388,7 @@ export async function bootApp({
       exportObj: () => morphSystem.exportMorphObj(),
       exportJson: () => morphSystem.exportMorphJson(),
       examples: () => examplesModal.open(),
+      fotogrametrias: () => fotogrametriasModal.open(),
       about: () => helpModal.open(),
       isWireframe: () => params.wireframe,
       isGrid: () => params.showGrid,

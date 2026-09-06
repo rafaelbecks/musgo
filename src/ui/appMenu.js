@@ -14,29 +14,34 @@ export function createAppMenu({
 
   const bar = document.createElement("nav");
   bar.className = "app-menu";
-  bar.setAttribute("aria-label", "Application menu");
+  bar.setAttribute("aria-label", "Menú de la aplicación");
 
   const menus = [
     {
       id: "file",
-      label: "File",
+      label: "Archivo",
       items: [
-        { id: "new", label: "New", shortcut: "⌘N", icon: "add-outline" },
-        { id: "open", label: "Open…", shortcut: "⌘O", icon: "folder-open-outline" },
-        { id: "importModel", label: "Import model…", icon: "cube-outline" },
-        { id: "save", label: "Save", shortcut: "⌘S", icon: "save-outline" },
-        { id: "saveAs", label: "Save As…", icon: "download-outline" },
+        { id: "new", label: "Nuevo", shortcut: "⌘N", icon: "add-outline" },
+        { id: "open", label: "Abrir…", shortcut: "⌘O", icon: "folder-open-outline" },
+        { id: "importModel", label: "Importar modelo…", icon: "cube-outline" },
+        { id: "save", label: "Guardar", shortcut: "⌘S", icon: "save-outline" },
+        { id: "saveAs", label: "Guardar como…", icon: "download-outline" },
         { type: "separator" },
-        { id: "exportGlb", label: "Export GLB…", icon: "cube-outline" },
-        { id: "exportObj", label: "Export OBJ…", icon: "shapes-outline" },
-        { id: "exportJson", label: "Export JSON…", icon: "code-slash-outline" },
+        { id: "exportGlb", label: "Exportar GLB…", icon: "cube-outline" },
+        { id: "exportObj", label: "Exportar OBJ…", icon: "shapes-outline" },
+        { id: "exportJson", label: "Exportar JSON…", icon: "code-slash-outline" },
         { type: "separator" },
-        { id: "examples", label: "Examples…", icon: "bug-outline" },
+        { id: "examples", label: "Ejemplos…", icon: "bug-outline" },
+        {
+          id: "fotogrametrias",
+          label: "Fotogrametrías secta…",
+          icon: "scan-outline",
+        },
       ],
     },
     {
       id: "view",
-      label: "View",
+      label: "Vista",
       items: [
         {
           id: "wireframe",
@@ -54,7 +59,7 @@ export function createAppMenu({
         },
         {
           id: "axes",
-          label: "Axes",
+          label: "Ejes",
           type: "checkbox",
           icon: "move-outline",
           checked: () => actions.isAxes?.(),
@@ -63,9 +68,9 @@ export function createAppMenu({
     },
     {
       id: "about",
-      label: "About",
+      label: "Acerca de",
       items: [
-        { id: "about", label: "About MUSGO…", icon: "information-circle-outline" },
+        { id: "about", label: "Acerca de MUSGO…", icon: "information-circle-outline" },
       ],
     },
   ];

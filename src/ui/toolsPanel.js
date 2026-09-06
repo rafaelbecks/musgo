@@ -226,7 +226,7 @@ export function createToolsPanel({
     morphUi = api;
     return api;
   });
-  const envFolder = viewTab.addFolder({ title: "Environment", expanded: true });
+  const envFolder = viewTab.addFolder({ title: "Entorno", expanded: true });
   const onEnvChange = () => {
     params.customEnvEnabled = false;
     customEnvFile = null;
@@ -249,7 +249,7 @@ export function createToolsPanel({
   }
   envFolder
     .addBinding(params, "envCategory", {
-      label: "category",
+      label: "categoría",
       options: ENV_CATEGORIES,
     })
     .on("change", () => {
@@ -288,12 +288,12 @@ export function createToolsPanel({
   });
 
   const customEnvFolder = envFolder.addFolder({
-    title: "Image environment",
+    title: "Entorno por imagen",
     expanded: false,
   });
   const customEnvBindings = [];
 
-  customEnvFolder.addButton({ title: "Load image…" }).on("click", async () => {
+  customEnvFolder.addButton({ title: "Cargar imagen…" }).on("click", async () => {
     try {
       const file = await pickImageFile();
       customEnvFile = file;
@@ -309,7 +309,7 @@ export function createToolsPanel({
     }
   });
 
-  customEnvFolder.addButton({ title: "Clear image" }).on("click", async () => {
+  customEnvFolder.addButton({ title: "Quitar imagen" }).on("click", async () => {
     customEnvFile = null;
     params.customEnvEnabled = false;
     params.customEnvFileName = "";
@@ -1324,9 +1324,9 @@ export function createToolsPanel({
       await morphUiReady;
       return morphUi.saveOrganismAs();
     },
-    async importModel() {
+    async importModel(file = null) {
       await morphUiReady;
-      return morphUi.importModel();
+      return morphUi.importModel(file);
     },
   };
 }

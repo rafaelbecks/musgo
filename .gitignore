@@ -8,3 +8,4 @@ build/
 .vite/
 vendor/
 env/raw photos
+*.blend
