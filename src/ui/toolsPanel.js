@@ -1292,6 +1292,20 @@ export function createToolsPanel({
     sceneSystem.scene.backgroundBlurriness = params.bgBlur;
   }
 
+  async function setEnvironment(envId) {
+    if (!envId) return;
+    params.customEnvEnabled = false;
+    customEnvFile = null;
+    customEnvFileBinding?.refresh();
+    params.environment = envId;
+    if (getEnvFormat(envId) === "exr") {
+      params.bgBlur = 0.15;
+      bgBlurBinding?.refresh();
+    }
+    envBinding?.refresh();
+    await applyEnvironment();
+  }
+
   return {
     pane,
     bridgeParams,
@@ -1304,6 +1318,7 @@ export function createToolsPanel({
       morphUi?.refreshModelTexture?.();
     },
     applyEnvironment,
+    setEnvironment,
     async loadOrganismFile(file, opts = {}) {
       await morphUiReady;
       return morphUi.loadOrganismFile(file, opts);

@@ -1,6 +1,6 @@
 const LABELS = {
-  model: "Loading shape",
-  environment: "Loading environment",
+  model: "Cargando modelo",
+  environment: "Cargando entorno",
 };
 
 export function createLoading() {

@@ -272,7 +272,7 @@ function ensureGeometryUVs(geometry) {
   geometry.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
 }
 
-export function createMorphSystem({ scene, params: viewerParams, onViewerChange } = {}) {
+export function createMorphSystem({ scene, params: viewerParams, onViewerChange, loading } = {}) {
   let mesh = null;
   let builtKey = null;
   let noiseMix = 0;
@@ -781,18 +781,23 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
   }
 
   async function loadModelFromFile(file) {
-    const format = modelFileFormat(file);
-    const baseName = sanitizeModelBaseName(file.name);
-    const modelFile = `imported/${baseName}`;
-    const data = await file.arrayBuffer();
+    loading?.begin("model");
+    try {
+      const format = modelFileFormat(file);
+      const baseName = sanitizeModelBaseName(file.name);
+      const modelFile = `imported/${baseName}`;
+      const data = await file.arrayBuffer();
 
-    const asset = await loadModelRootFromBuffer(data, format);
-    storeImportedSource(modelFile, {
-      format,
-      fileName: file.name || `${baseName}.${format}`,
-      data,
-    });
-    return { modelFile, asset: resolveModelAsset(modelFile, asset) };
+      const asset = await loadModelRootFromBuffer(data, format);
+      storeImportedSource(modelFile, {
+        format,
+        fileName: file.name || `${baseName}.${format}`,
+        data,
+      });
+      return { modelFile, asset: resolveModelAsset(modelFile, asset) };
+    } finally {
+      loading?.end("model");
+    }
   }
 
   /**
@@ -848,6 +853,8 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
     if (morphParams.shape === "model") {
       const id = ++loadId;
       const modelFile = morphParams.modelFile || "cosos/pututu";
+      const needsLoad = !modelAssetCache.has(modelFile);
+      if (needsLoad) loading?.begin("model");
       try {
         const { geometry, materials, textureSlots } = await loadModelAsset(modelFile);
         if (id !== loadId) return;
@@ -860,6 +867,8 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange 
         activeModelTextureSlots = null;
         activeModelUsesMultiMaterial = false;
         console.error("[morph] failed to load model", modelFile, err);
+      } finally {
+        if (needsLoad) loading?.end("model");
       }
       return;
     }

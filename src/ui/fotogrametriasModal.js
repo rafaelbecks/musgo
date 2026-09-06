@@ -24,7 +24,7 @@ function modelMime(filename) {
   return "model/gltf-binary";
 }
 
-export function createFotogrametriasModal({ onSelectModel } = {}) {
+export function createFotogrametriasModal({ loading, onSelectModel } = {}) {
   if (!onSelectModel) {
     return { open() {}, close() {}, destroy() {} };
   }
@@ -101,6 +101,7 @@ export function createFotogrametriasModal({ onSelectModel } = {}) {
 
   async function selectModel(filename) {
     hide();
+    loading?.begin("model");
     try {
       const response = await fetch(
         `${MODELS_BASE}${encodeURIComponent(filename)}`
@@ -112,6 +113,8 @@ export function createFotogrametriasModal({ onSelectModel } = {}) {
     } catch (err) {
       console.error("[fotogrametrias] failed to open", filename, err);
       window.alert(err?.message || `No se pudo abrir ${filename}`);
+    } finally {
+      loading?.end("model");
     }
   }
 

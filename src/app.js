@@ -49,6 +49,7 @@ export async function bootApp({
   const morphSystem = createMorphSystem({
     scene: sceneSystem.scene,
     params,
+    loading,
     onViewerChange: () => morphUiHooks.refreshViewer(),
   });
   focusHooks.getMesh = () => morphSystem.getAnalysisMesh();
@@ -364,9 +365,13 @@ export async function bootApp({
   });
 
   const fotogrametriasModal = createFotogrametriasModal({
+    loading,
     onSelectModel: async (file) => {
       try {
-        await toolsPanel.importModel(file);
+        await Promise.all([
+          toolsPanel.setEnvironment("qwantani_sunset"),
+          toolsPanel.importModel(file),
+        ]);
         await morphSystem.sync();
         scheduleAnalysis();
         underwaterSystem?.refreshFromMorph();
