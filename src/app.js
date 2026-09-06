@@ -24,7 +24,10 @@ import { createUnderwaterSystem } from "./underwater/underwaterSystem.js";
 import { modulationSystem } from "./modulation/modulationSystem.js";
 import { resolveModParam } from "./modulation/modulationTargets.js";
 
-export async function bootApp({ pendingOrganismFile = null } = {}) {
+export async function bootApp({
+  pendingOrganismFile = null,
+  pendingOrganismHandle = null,
+} = {}) {
   const loading = createLoading();
   const analysisLoading = createAnalysisLoading();
   const analysisLoadingEl = document.getElementById("analysis-loading");
@@ -424,7 +427,9 @@ export async function bootApp({ pendingOrganismFile = null } = {}) {
 
   if (pendingOrganismFile) {
     try {
-      await toolsPanel.loadOrganismFile(pendingOrganismFile);
+      await toolsPanel.loadOrganismFile(pendingOrganismFile, {
+        fileHandle: pendingOrganismHandle,
+      });
     } catch (err) {
       console.error("[organism] splash load failed", err);
       window.alert(err?.message || "Failed to load organism file.");
@@ -493,4 +498,22 @@ export async function bootApp({ pendingOrganismFile = null } = {}) {
 
   // WebXR requires setAnimationLoop (not requestAnimationFrame).
   sceneSystem.setAnimationLoop(animate);
+
+  return {
+    async openOrganismExternal(file, fileHandle = null) {
+      try {
+        await toolsPanel.loadOrganismFile(file, {
+          fileHandle,
+          confirmDiscard: true,
+        });
+        await morphSystem.sync();
+        scheduleAnalysis();
+        underwaterSystem?.refreshFromMorph();
+      } catch (err) {
+        if (err?.message === "Cancelled.") return;
+        console.error("[organism] external open failed", err);
+        window.alert(err?.message || "Failed to open organism file.");
+      }
+    },
+  };
 }

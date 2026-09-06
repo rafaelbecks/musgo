@@ -1304,9 +1304,9 @@ export function createToolsPanel({
       morphUi?.refreshModelTexture?.();
     },
     applyEnvironment,
-    async loadOrganismFile(file) {
+    async loadOrganismFile(file, opts = {}) {
       await morphUiReady;
-      return morphUi.loadOrganismFile(file);
+      return morphUi.loadOrganismFile(file, opts);
     },
     async openOrganism() {
       await morphUiReady;

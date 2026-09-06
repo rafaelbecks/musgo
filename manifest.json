@@ -28,5 +28,23 @@
       "type": "image/png",
       "purpose": "maskable"
     }
+  ],
+  "file_handlers": [
+    {
+      "action": "./",
+      "name": "MUSGO Organism",
+      "accept": {
+        "application/vnd.musgo.organism+json": [".organism"],
+        "application/json": [".organism"]
+      },
+      "icons": [
+        {
+          "src": "icons/resonant192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ],
+      "launch_type": "single-client"
+    }
   ]
 }

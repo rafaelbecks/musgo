@@ -65,7 +65,8 @@ Evaluate `supercollider/ResonantTorus.scd` in the SuperCollider IDE, then connec
 
 **Shortcuts**
 - **Space** (splash) — enter the editor
-- Drop `.organism` on splash — open that specimen
+- Drop `.organism` anywhere — open that specimen (also works after entering the editor)
+- Double-click `.organism` — opens in MUSGO when the app is **installed as a PWA** (Chrome/Edge; needs HTTPS)
 - ⌘S / Ctrl+S — save organism
 - ⌘K / Ctrl+K — toggle Acoustic Construction bottom panel
 
@@ -76,6 +77,7 @@ Evaluate `supercollider/ResonantTorus.scd` in the SuperCollider IDE, then connec
 - [SuperCollider](https://supercollider.github.io/) — exciter-driven chamber network (tube resonators + waveguide links)
 - [Web MIDI API](https://developer.mozilla.org/en-US/docs/Web/API/Web_MIDI_API) — live pitch and trigger
 - File System Access API — `.organism` load / save / overwrite (⌘S)
+- [File Handling API](https://developer.mozilla.org/en-US/docs/Web/API/File_Handling_API) — OS association for `.organism` (installed PWA)
 
 ## License
 

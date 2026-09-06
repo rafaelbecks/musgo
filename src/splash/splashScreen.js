@@ -8,7 +8,8 @@ import { LOGO_VIEWPORT_SCALE } from "./logoConfig.js";
 
 /**
  * MUSGO splash / home screen.
- * Space / logo click → enter editor. Drop a .organism file → enter and load it.
+ * Space / logo click → enter editor.
+ * Drop / OS launch of `.organism` is handled in main.js (same as Glow).
  *
  * Fern tweaks (also on `window.MUSGO_SPLASH`):
  *   FERN_SIZE, FERN_MODULATION_HZ — see fernConfig.js
@@ -38,7 +39,6 @@ export function createSplashScreen({
   const logo = createMusgoLogo(logoCanvas);
 
   let entered = false;
-  let dragDepth = 0;
 
   // Expose tweakables for console / live adjustment
   const api = {
@@ -99,57 +99,34 @@ export function createSplashScreen({
   fern.state.modulationHz = FERN_MODULATION_HZ;
   logo.state.viewportScale = LOGO_VIEWPORT_SCALE;
 
-  async function enter(file = null) {
+  /**
+   * @param {File | { file?: File | null, fileHandle?: FileSystemFileHandle | null } | null} payload
+   */
+  async function enter(payload = null) {
     if (entered) return;
     entered = true;
+
+    let file = null;
+    let fileHandle = null;
+    if (payload instanceof File) {
+      file = payload;
+    } else if (payload && typeof payload === "object") {
+      file = payload.file ?? null;
+      fileHandle = payload.fileHandle ?? null;
+    }
+
     teardownListeners();
     fern.stop();
     logo.stop();
     destroy();
-    await onEnter?.({ file });
-  }
-
-  function isOrganismFile(file) {
-    if (!file) return false;
-    const name = (file.name || "").toLowerCase();
-    return name.endsWith(".organism") || name.endsWith(".json");
+    await onEnter?.({ file, fileHandle });
   }
 
   function onKeyDown(ev) {
     if (ev.code !== "Space" && ev.key !== " ") return;
-    // Ignore repeat / modified
     if (ev.repeat || ev.metaKey || ev.ctrlKey || ev.altKey) return;
     ev.preventDefault();
     enter(null);
-  }
-
-  function onDragEnter(ev) {
-    ev.preventDefault();
-    dragDepth += 1;
-    root.classList.add("is-dragover");
-  }
-
-  function onDragLeave(ev) {
-    ev.preventDefault();
-    dragDepth = Math.max(0, dragDepth - 1);
-    if (dragDepth === 0) root.classList.remove("is-dragover");
-  }
-
-  function onDragOver(ev) {
-    ev.preventDefault();
-    if (ev.dataTransfer) ev.dataTransfer.dropEffect = "copy";
-  }
-
-  function onDrop(ev) {
-    ev.preventDefault();
-    dragDepth = 0;
-    root.classList.remove("is-dragover");
-    const file = ev.dataTransfer?.files?.[0];
-    if (!isOrganismFile(file)) {
-      window.alert("Drop a .organism file to open it.");
-      return;
-    }
-    enter(file);
   }
 
   function onLogoClick(ev) {
@@ -160,10 +137,6 @@ export function createSplashScreen({
   function teardownListeners() {
     window.removeEventListener("keydown", onKeyDown);
     logoCanvas.removeEventListener("click", onLogoClick);
-    root.removeEventListener("dragenter", onDragEnter);
-    root.removeEventListener("dragleave", onDragLeave);
-    root.removeEventListener("dragover", onDragOver);
-    root.removeEventListener("drop", onDrop);
   }
 
   function destroy() {
@@ -177,10 +150,6 @@ export function createSplashScreen({
 
   window.addEventListener("keydown", onKeyDown);
   logoCanvas.addEventListener("click", onLogoClick);
-  root.addEventListener("dragenter", onDragEnter);
-  root.addEventListener("dragleave", onDragLeave);
-  root.addEventListener("dragover", onDragOver);
-  root.addEventListener("drop", onDrop);
 
   fern.start();
   logo.start().catch((err) => console.error("[splash] logo failed", err));

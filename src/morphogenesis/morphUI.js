@@ -1089,9 +1089,12 @@ export async function setupMorphUI(
     saveOrganism: () => saveOrganismFile(),
     saveOrganismAs: () => saveOrganismFile({ forcePicker: true }),
     importModel: () => importModelFile(),
-    async loadOrganismFile(file) {
+    async loadOrganismFile(file, { fileHandle = null, confirmDiscard = false } = {}) {
+      if (confirmDiscard && !confirmDiscardUnsavedChanges()) {
+        throw new Error("Cancelled.");
+      }
       const state = await readOrganismFile(file);
-      await applyLoadedOrganism({ state, file, fileHandle: null });
+      await applyLoadedOrganism({ state, file, fileHandle });
       return state;
     },
   };
