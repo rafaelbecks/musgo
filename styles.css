@@ -942,7 +942,9 @@ body.is-splash {
   transition: opacity 0.35s ease;
 }
 
-#splash.is-dragover {
+#splash.is-dragover,
+body.musgo-file-dragover #splash,
+body.musgo-file-dragover #app:not([hidden]) #viewer-panel {
   outline: 1px solid rgba(132, 255, 0, 0.55);
   outline-offset: -12px;
 }
