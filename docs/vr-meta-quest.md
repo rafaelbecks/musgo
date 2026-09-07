@@ -17,8 +17,9 @@ npm start   # serve on :9990, then open from the headset over HTTPS
 
 | Input | Action |
 | --- | --- |
-| Trigger / pinch + drag | Orbit (same idea as mouse drag) |
-| Both hands pinch | Zoom (hand distance) |
+| Trigger + drag | Orbit (same idea as mouse drag) |
+| Both triggers (pinch) | Zoom (hand distance) |
+| **Grip + drag** | Pan / reposition object (left·right·up·down·depth) |
 | **Y or B** | Toggle translucent **camera** (passthrough) ↔ **env** sky |
 | **X + A** | Exit VR |
 

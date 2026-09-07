@@ -4,8 +4,9 @@ import { VRButton } from "three/addons/webxr/VRButton.js";
 /**
  * WebXR / Meta Quest via Three.js.
  * Controllers / hand pinch mirror desktop OrbitControls:
- * - one-hand select + move → orbit
- * - two-hand select (pinch distance) → zoom
+ * - trigger (select) + move → orbit
+ * - both triggers (pinch distance) → zoom
+ * - grip (squeeze) + move → pan target (reposition object in space)
  * Face buttons (Quest):
  * - X + A → exit XR
  * - Y or B → toggle translucent camera (passthrough) ↔ env background
@@ -56,8 +57,11 @@ export function createVrSystem({
   controller0.name = "xr-controller-0";
   controller1.name = "xr-controller-1";
 
+  const panDelta = new THREE.Vector3();
+
   for (const controller of [controller0, controller1]) {
     controller.userData.dragging = false;
+    controller.userData.panning = false;
     controller.userData.prevPos = new THREE.Vector3();
     makeRay(controller);
     scene.add(controller);
@@ -242,9 +246,44 @@ export function createVrSystem({
     prevPinchDist = 0;
   }
 
+  function onSqueezeStart(event) {
+    const controller = event.target;
+    controller.userData.panning = true;
+    controller.userData.prevPos.copy(controller.position);
+    controls.autoRotate = false;
+  }
+
+  function onSqueezeEnd(event) {
+    event.target.userData.panning = false;
+  }
+
+  function updatePanFromControllers() {
+    const p0 = controller0.userData.panning;
+    const p1 = controller1.userData.panning;
+    if (!p0 && !p1) return;
+
+    panDelta.set(0, 0, 0);
+    let count = 0;
+    for (const controller of [controller0, controller1]) {
+      if (!controller.userData.panning) continue;
+      panDelta.x += controller.position.x - controller.userData.prevPos.x;
+      panDelta.y += controller.position.y - controller.userData.prevPos.y;
+      panDelta.z += controller.position.z - controller.userData.prevPos.z;
+      controller.userData.prevPos.copy(controller.position);
+      count += 1;
+    }
+    if (count > 1) panDelta.multiplyScalar(1 / count);
+    if (panDelta.lengthSq() < 1e-12) return;
+
+    // 1:1 grab in room space — slide the orbit target with the hand.
+    controls.target.add(panDelta);
+    applyRigFromSpherical();
+  }
+
   function updateOrbitFromControllers() {
-    const d0 = controller0.userData.dragging;
-    const d1 = controller1.userData.dragging;
+    // Grip pan takes priority on that hand so trigger+grip doesn't fight.
+    const d0 = controller0.userData.dragging && !controller0.userData.panning;
+    const d1 = controller1.userData.dragging && !controller1.userData.panning;
 
     if (d0 && d1) {
       const dist = controller0.position.distanceTo(controller1.position);
@@ -323,6 +362,10 @@ export function createVrSystem({
   controller1.addEventListener("selectstart", onSelectStart);
   controller0.addEventListener("selectend", onSelectEnd);
   controller1.addEventListener("selectend", onSelectEnd);
+  controller0.addEventListener("squeezestart", onSqueezeStart);
+  controller1.addEventListener("squeezestart", onSqueezeStart);
+  controller0.addEventListener("squeezeend", onSqueezeEnd);
+  controller1.addEventListener("squeezeend", onSqueezeEnd);
 
   renderer.xr.addEventListener("sessionstart", onSessionStart);
   renderer.xr.addEventListener("sessionend", onSessionEnd);
@@ -422,6 +465,7 @@ export function createVrSystem({
     update() {
       if (!renderer.xr.isPresenting) return;
       updateFaceButtons();
+      updatePanFromControllers();
       updateOrbitFromControllers();
       // Env reloads set scene.background — re-assert camera passthrough.
       if (xrBgMode === "camera" && canUseCameraMode() && scene.background != null) {
@@ -438,6 +482,10 @@ export function createVrSystem({
       controller1.removeEventListener("selectstart", onSelectStart);
       controller0.removeEventListener("selectend", onSelectEnd);
       controller1.removeEventListener("selectend", onSelectEnd);
+      controller0.removeEventListener("squeezestart", onSqueezeStart);
+      controller1.removeEventListener("squeezestart", onSqueezeStart);
+      controller0.removeEventListener("squeezeend", onSqueezeEnd);
+      controller1.removeEventListener("squeezeend", onSqueezeEnd);
       button?.remove();
       if (camera.parent === rig) rig.remove(camera);
       if (rig.parent) rig.parent.remove(rig);
