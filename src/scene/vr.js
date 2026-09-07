@@ -2,13 +2,20 @@ import * as THREE from "three";
 import { VRButton } from "three/addons/webxr/VRButton.js";
 
 /**
- * WebXR / Meta Quest VR POC via Three.js VRButton.
+ * WebXR / Meta Quest via Three.js.
  * Controllers / hand pinch mirror desktop OrbitControls:
  * - one-hand select + move → orbit
  * - two-hand select (pinch distance) → zoom
- * Face buttons (Quest): X + A → exit VR
+ * Face buttons (Quest):
+ * - X + A → exit XR
+ * - Y or B → toggle translucent camera (passthrough) ↔ env background
+ *
+ * Passthrough needs immersive-ar (alpha-blend). Envmap lighting
+ * (scene.environment) stays active in both modes; only scene.background
+ * is cleared for camera mode. Desktop background is restored on exit.
+ *
  * @see https://threejs.org/docs/#VRButton
- * @see https://threejs.org/manual/en/how-to-create-vr-content.html
+ * @see https://developers.meta.com/horizon/documentation/web/webxr-mixed-reality/
  */
 export function createVrSystem({
   renderer,
@@ -23,6 +30,8 @@ export function createVrSystem({
   const host = mount ?? document.body;
   let button = null;
   let disposed = false;
+  /** @type {'immersive-vr' | 'immersive-ar' | null} */
+  let sessionMode = null;
 
   const rig = new THREE.Group();
   rig.name = "xr-rig";
@@ -33,8 +42,14 @@ export function createVrSystem({
   let saved = null;
   let prevPinchDist = 0;
 
-  // Quest face buttons: buttons[4] = X (left) / A (right)
+  // Quest face buttons: [4] = X/A, [5] = Y/B
   let prevChord = false;
+  let prevToggle = false;
+
+  /** @type {'env' | 'camera'} */
+  let xrBgMode = "env";
+  /** Desktop background snapshot — never leave XR with a null bg on desktop. */
+  let desktopBackground = null;
 
   const controller0 = renderer.xr.getController(0);
   const controller1 = renderer.xr.getController(1);
@@ -101,6 +116,29 @@ export function createVrSystem({
     saved = null;
   }
 
+  function canUseCameraMode() {
+    return renderer.xr.getEnvironmentBlendMode() === "alpha-blend";
+  }
+
+  function resolveEnvBackground() {
+    if (scene.environment) return scene.environment;
+    if (desktopBackground != null) return desktopBackground;
+    return new THREE.Color(0x0a0a0c);
+  }
+
+  function applyXrBackgroundMode() {
+    if (!renderer.xr.isPresenting) return;
+    if (xrBgMode === "camera" && canUseCameraMode()) {
+      scene.background = null;
+      return;
+    }
+    if (xrBgMode === "camera" && !canUseCameraMode()) {
+      // Opaque VR session — no passthrough; stay on env sky.
+      xrBgMode = "env";
+    }
+    scene.background = resolveEnvBackground();
+  }
+
   function syncSphericalFromView() {
     offset.copy(camera.position).sub(controls.target);
     if (offset.lengthSq() < 1e-8) offset.set(0, 0, 3);
@@ -143,19 +181,32 @@ export function createVrSystem({
     const session = renderer.xr.getSession?.();
     let x = false;
     let a = false;
-    if (!session) return { x, a };
+    let y = false;
+    let b = false;
+    if (!session) return { x, a, y, b };
     for (const source of session.inputSources) {
-      const pressed = Boolean(source.gamepad?.buttons?.[4]?.pressed);
-      if (!pressed) continue;
-      if (source.handedness === "left") x = true;
-      else if (source.handedness === "right") a = true;
-      else {
-        // Fallback if handedness is missing: treat first as X, second as A
-        if (!x) x = true;
-        else a = true;
+      const buttons = source.gamepad?.buttons;
+      if (!buttons) continue;
+      const face = Boolean(buttons[4]?.pressed);
+      const alt = Boolean(buttons[5]?.pressed);
+      if (source.handedness === "left") {
+        if (face) x = true;
+        if (alt) y = true;
+      } else if (source.handedness === "right") {
+        if (face) a = true;
+        if (alt) b = true;
+      } else {
+        if (face) {
+          if (!x) x = true;
+          else a = true;
+        }
+        if (alt) {
+          if (!y) y = true;
+          else b = true;
+        }
       }
     }
-    return { x, a };
+    return { x, a, y, b };
   }
 
   function endVrSession() {
@@ -164,10 +215,18 @@ export function createVrSystem({
   }
 
   function updateFaceButtons() {
-    const { x, a } = readFaceButtons();
+    const { x, a, y, b } = readFaceButtons();
     const chord = x && a;
     if (chord && !prevChord) endVrSession();
     prevChord = chord;
+
+    // Y / B — toggle translucent camera ↔ env (ignore while exiting)
+    const toggle = !chord && (y || b);
+    if (toggle && !prevToggle) {
+      xrBgMode = xrBgMode === "camera" ? "env" : "camera";
+      applyXrBackgroundMode();
+    }
+    prevToggle = toggle;
   }
 
   function onSelectStart(event) {
@@ -219,6 +278,8 @@ export function createVrSystem({
 
   function onSessionStart() {
     captureDesktopView();
+    desktopBackground = scene.background;
+    xrBgMode = "env";
     controls.enabled = false;
     controls.autoRotate = false;
     scene.add(rig);
@@ -226,12 +287,24 @@ export function createVrSystem({
     frameContentForVr();
     setRaysVisible(true);
     document.body.classList.add("is-vr-presenting");
+    document.body.classList.toggle("is-xr-ar", sessionMode === "immersive-ar");
     prevChord = false;
+    prevToggle = false;
+    applyXrBackgroundMode();
   }
 
   function onSessionEnd() {
     document.body.classList.remove("is-vr-presenting");
+    document.body.classList.remove("is-xr-ar");
     setRaysVisible(false);
+    // Camera mode leaves background null — restore desktop-safe sky without
+    // clobbering an env that may have been loaded during the session.
+    if (scene.background == null) {
+      scene.background =
+        scene.environment ?? desktopBackground ?? new THREE.Color(0x0a0a0c);
+    }
+    desktopBackground = null;
+    xrBgMode = "env";
     // Carry the VR orbit framing back to desktop OrbitControls
     offset.setFromSpherical(spherical);
     const endPos = controls.target.clone().add(offset);
@@ -243,6 +316,7 @@ export function createVrSystem({
     }
     restoreDesktopView();
     prevChord = false;
+    prevToggle = false;
   }
 
   controller0.addEventListener("selectstart", onSelectStart);
@@ -262,32 +336,102 @@ export function createVrSystem({
     ],
   };
 
-  // Only mount the Enter VR control when immersive-vr is actually available.
-  if (navigator.xr?.isSessionSupported) {
-    navigator.xr
-      .isSessionSupported("immersive-vr")
-      .then((supported) => {
-        if (!supported || disposed) return;
-        button = VRButton.createButton(renderer, sessionInit);
-        button.classList.add("vr-button");
-        host.appendChild(button);
-      })
-      .catch(() => {
-        /* hide — VR not allowed / not available */
-      });
+  /**
+   * Prefer immersive-ar (Quest passthrough / alpha-blend) so Y/B translucent
+   * mode can show the real world; fall back to immersive-vr.
+   */
+  async function mountXrButton() {
+    if (!navigator.xr?.isSessionSupported || disposed) return;
+
+    let ar = false;
+    let vr = false;
+    try {
+      ar = await navigator.xr.isSessionSupported("immersive-ar");
+    } catch {
+      /* ignore */
+    }
+    try {
+      vr = await navigator.xr.isSessionSupported("immersive-vr");
+    } catch {
+      /* ignore */
+    }
+    if (disposed || (!ar && !vr)) return;
+
+    sessionMode = ar ? "immersive-ar" : "immersive-vr";
+
+    if (sessionMode === "immersive-vr") {
+      button = VRButton.createButton(renderer, sessionInit);
+      button.classList.add("vr-button");
+      host.appendChild(button);
+      return;
+    }
+
+    // Custom AR entry — same chrome as VRButton, local-floor like our VR path.
+    button = document.createElement("button");
+    button.id = "VRButton";
+    button.className = "vr-button";
+    button.textContent = "ENTER VR";
+    button.type = "button";
+
+    let currentSession = null;
+    const sessionOptions = {
+      ...sessionInit,
+      optionalFeatures: [
+        "local-floor",
+        "bounded-floor",
+        "hand-tracking",
+        "layers",
+        ...(sessionInit.optionalFeatures || []),
+      ],
+    };
+
+    async function onSessionStarted(session) {
+      session.addEventListener("end", onSessionEnded);
+      renderer.xr.setReferenceSpaceType("local-floor");
+      await renderer.xr.setSession(session);
+      button.textContent = "EXIT VR";
+      currentSession = session;
+    }
+
+    function onSessionEnded() {
+      currentSession?.removeEventListener("end", onSessionEnded);
+      button.textContent = "ENTER VR";
+      currentSession = null;
+    }
+
+    button.addEventListener("click", () => {
+      if (currentSession) {
+        currentSession.end();
+        return;
+      }
+      navigator.xr
+        .requestSession("immersive-ar", sessionOptions)
+        .then(onSessionStarted)
+        .catch((err) => console.warn("[xr] immersive-ar failed", err));
+    });
+
+    host.appendChild(button);
   }
+
+  mountXrButton();
 
   return {
     button: () => button,
     isPresenting: () => renderer.xr.isPresenting,
+    getBackgroundMode: () => xrBgMode,
     update() {
       if (!renderer.xr.isPresenting) return;
       updateFaceButtons();
       updateOrbitFromControllers();
+      // Env reloads set scene.background — re-assert camera passthrough.
+      if (xrBgMode === "camera" && canUseCameraMode() && scene.background != null) {
+        scene.background = null;
+      }
     },
     dispose() {
       disposed = true;
       document.body.classList.remove("is-vr-presenting");
+      document.body.classList.remove("is-xr-ar");
       renderer.xr.removeEventListener("sessionstart", onSessionStart);
       renderer.xr.removeEventListener("sessionend", onSessionEnd);
       controller0.removeEventListener("selectstart", onSelectStart);

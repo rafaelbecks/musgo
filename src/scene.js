@@ -15,8 +15,9 @@ export function createSceneSystem({ mount, loading, getFocusMesh } = {}) {
   const camera = new THREE.PerspectiveCamera(45, 1, 0.05, 500);
   camera.position.set(4, 3, 6);
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0x000000, 0);
   renderer.physicallyCorrectLights = true;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;

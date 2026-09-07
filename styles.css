@@ -375,6 +375,7 @@ textarea,
   flex: 1;
   min-height: 0;
   position: relative;
+  background: #0a0a0c;
 }
 
 #viewer-mount canvas {
