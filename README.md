@@ -67,6 +67,7 @@ Evaluate `supercollider/ResonantTorus.scd` in the SuperCollider IDE, then connec
 - **Space** (splash) — enter the editor
 - Drop `.organism` anywhere — open that specimen (also works after entering the editor)
 - Double-click `.organism` — opens in MUSGO when the app is **installed as a PWA** (Chrome/Edge; needs HTTPS)
+- **Import USDZ** (ESPORA / other apps) — installed PWA registers `web+musgo://import?src=<url>`; if MUSGO is not installed, the same payload works as `https://musgo.luminode.studio/?musgo=<encoded-deep-link>` or `?import=usdz` (opens the model picker). Local `.usdz` files can also be opened with the installed PWA (File Handling).
 - ⌘S / Ctrl+S — save organism
 - ⌘K / Ctrl+K — toggle Acoustic Construction bottom panel
 

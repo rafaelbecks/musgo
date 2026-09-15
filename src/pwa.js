@@ -8,17 +8,30 @@ export function supportsFileHandling() {
 }
 
 /**
- * Register a consumer for OS-launched files (Chrome/Edge installed PWA).
+ * Register a consumer for OS-launched files / protocol URLs (Chrome/Edge PWA).
  * Launches are queued until this is set — call once the UI can open a file.
- * @param {(fileHandle: FileSystemFileHandle) => void | Promise<void>} handler
+ * @param {(launch: {
+ *   fileHandle?: FileSystemFileHandle | null,
+ *   targetURL?: string | null,
+ * }) => void | Promise<void>} handler
  */
 export function setupLaunchQueue(handler) {
   if (!supportsFileHandling() || typeof handler !== "function") return;
 
   window.launchQueue.setConsumer((launchParams) => {
-    if (!launchParams?.files?.length) return;
-    for (const fileHandle of launchParams.files) {
-      Promise.resolve(handler(fileHandle)).catch((err) => {
+    const targetURL = launchParams?.targetURL || null;
+    const files = launchParams?.files || [];
+
+    if (targetURL && !files.length) {
+      Promise.resolve(handler({ targetURL, fileHandle: null })).catch((err) => {
+        console.error("[pwa] failed to handle protocol launch:", err);
+      });
+      return;
+    }
+
+    if (!files.length) return;
+    for (const fileHandle of files) {
+      Promise.resolve(handler({ fileHandle, targetURL })).catch((err) => {
         console.error("[pwa] failed to handle launched file:", err);
       });
     }

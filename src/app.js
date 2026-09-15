@@ -24,10 +24,14 @@ import { createAppMenu } from "./ui/appMenu.js";
 import { createUnderwaterSystem } from "./underwater/underwaterSystem.js";
 import { modulationSystem } from "./modulation/modulationSystem.js";
 import { resolveModParam } from "./modulation/modulationTargets.js";
+import { fetchImportSource, isFetchableSrc } from "./musgoLink.js";
 
 export async function bootApp({
   pendingOrganismFile = null,
   pendingOrganismHandle = null,
+  pendingModelFile = null,
+  pendingImportSrc = null,
+  pendingImportPrompt = false,
 } = {}) {
   const loading = createLoading();
   const analysisLoading = createAnalysisLoading();
@@ -446,6 +450,23 @@ export async function bootApp({
     }
   });
 
+  async function importModelFromExternal(file = null, { src = null, promptPicker = false } = {}) {
+    let modelFile = file;
+    if (!modelFile && src && isFetchableSrc(src)) {
+      modelFile = await fetchImportSource(src);
+    }
+    if (!modelFile && !promptPicker) {
+      throw new Error("No hay un modelo para importar.");
+    }
+    await Promise.all([
+      toolsPanel.setEnvironment?.("qwantani_sunset") ?? Promise.resolve(),
+      toolsPanel.importModel(modelFile),
+    ]);
+    await morphSystem.sync();
+    scheduleAnalysis();
+    underwaterSystem?.refreshFromMorph();
+  }
+
   if (pendingOrganismFile) {
     try {
       await toolsPanel.loadOrganismFile(pendingOrganismFile, {
@@ -454,6 +475,18 @@ export async function bootApp({
     } catch (err) {
       console.error("[organism] splash load failed", err);
       window.alert(err?.message || "Failed to load organism file.");
+    }
+  } else if (pendingModelFile || pendingImportSrc || pendingImportPrompt) {
+    try {
+      await importModelFromExternal(pendingModelFile, {
+        src: pendingImportSrc,
+        promptPicker: pendingImportPrompt || !pendingModelFile,
+      });
+    } catch (err) {
+      if (err?.message !== "File picker cancelled.") {
+        console.error("[import] splash import failed", err);
+        window.alert(err?.message || "No se pudo importar el modelo.");
+      }
     }
   }
 
@@ -534,6 +567,15 @@ export async function bootApp({
         if (err?.message === "Cancelled.") return;
         console.error("[organism] external open failed", err);
         window.alert(err?.message || "Failed to open organism file.");
+      }
+    },
+    async importModelExternal(file = null, { src = null, promptPicker = false } = {}) {
+      try {
+        await importModelFromExternal(file, { src, promptPicker });
+      } catch (err) {
+        if (err?.message === "File picker cancelled.") return;
+        console.error("[import] external import failed", err);
+        window.alert(err?.message || "No se pudo importar el modelo.");
       }
     },
   };

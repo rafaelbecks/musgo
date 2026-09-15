@@ -100,7 +100,13 @@ export function createSplashScreen({
   logo.state.viewportScale = LOGO_VIEWPORT_SCALE;
 
   /**
-   * @param {File | { file?: File | null, fileHandle?: FileSystemFileHandle | null } | null} payload
+   * @param {File | {
+   *   file?: File | null,
+   *   fileHandle?: FileSystemFileHandle | null,
+   *   kind?: "organism" | "model" | null,
+   *   importSrc?: string | null,
+   *   promptImport?: boolean,
+   * } | null} payload
    */
   async function enter(payload = null) {
     if (entered) return;
@@ -108,18 +114,24 @@ export function createSplashScreen({
 
     let file = null;
     let fileHandle = null;
+    let kind = null;
+    let importSrc = null;
+    let promptImport = false;
     if (payload instanceof File) {
       file = payload;
     } else if (payload && typeof payload === "object") {
       file = payload.file ?? null;
       fileHandle = payload.fileHandle ?? null;
+      kind = payload.kind ?? null;
+      importSrc = payload.importSrc ?? null;
+      promptImport = payload.promptImport ?? false;
     }
 
     teardownListeners();
     fern.stop();
     logo.stop();
     destroy();
-    await onEnter?.({ file, fileHandle });
+    await onEnter?.({ file, fileHandle, kind, importSrc, promptImport });
   }
 
   function onKeyDown(ev) {
