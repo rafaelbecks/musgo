@@ -154,7 +154,7 @@ export async function setupMorphUI(
       syncModelTextureFolder?.();
     });
 
-    modelImportButton = modelFolder.addButton({ title: "Import GLB / OBJ / USDZ…" });
+    modelImportButton = modelFolder.addButton({ title: "Import GLB / OBJ / USDZ / STL…" });
     modelImportButton.on("click", async () => {
       try {
         await importModelFile();
@@ -167,8 +167,8 @@ export async function setupMorphUI(
     });
   }
 
-  async function importModelFile(file = null) {
-    const picked = file ?? (await pickModelFile());
+  async function importModelFile(file = null, format = null) {
+    const picked = file ?? (await pickModelFile(format));
     const { modelFile } = await morphSystem.loadModelFromFile(picked);
     if (!importedModels.includes(modelFile)) {
       importedModels.push(modelFile);
@@ -1088,7 +1088,7 @@ export async function setupMorphUI(
     newOrganism,
     saveOrganism: () => saveOrganismFile(),
     saveOrganismAs: () => saveOrganismFile({ forcePicker: true }),
-    importModel: (file = null) => importModelFile(file),
+    importModel: (file = null, format = null) => importModelFile(file, format),
     async loadOrganismFile(file, { fileHandle = null, confirmDiscard = false } = {}) {
       if (confirmDiscard && !confirmDiscardUnsavedChanges()) {
         throw new Error("Cancelled.");

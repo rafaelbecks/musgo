@@ -1,8 +1,10 @@
 import * as THREE from "three";
 import { GLTFExporter } from "three/addons/exporters/GLTFExporter.js";
 import { OBJExporter } from "three/addons/exporters/OBJExporter.js";
+import { STLExporter } from "three/addons/exporters/STLExporter.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
+import { STLLoader } from "three/addons/loaders/STLLoader.js";
 import { USDLoader } from "three/addons/loaders/USDLoader.js";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
@@ -143,7 +145,7 @@ function base64ToArrayBuffer(base64) {
 function sanitizeModelBaseName(name) {
   return (
     String(name ?? "model")
-      .replace(/\.(glb|obj|usdz)$/i, "")
+      .replace(/\.(glb|obj|usdz|stl)$/i, "")
       .replace(/[^\w.-]+/g, "-")
       .replace(/^-+|-+$/g, "") || "model"
   );
@@ -179,8 +181,29 @@ function cloneModelMaterial(mat) {
     transparent: mat.transparent ?? false,
     opacity: mat.opacity ?? 1,
     alphaMap: mat.alphaMap || null,
+    vertexColors: Boolean(mat.vertexColors),
     side: THREE.FrontSide,
   });
+}
+
+function wrapStlGeometry(geometry) {
+  if (!geometry) {
+    throw new Error("No mesh in model file");
+  }
+  if (!geometry.attributes.normal) geometry.computeVertexNormals();
+  const hasColors = Boolean(geometry.hasColors);
+  const alpha = Number.isFinite(geometry.alpha) ? geometry.alpha : 1;
+  const material = new THREE.MeshPhysicalMaterial({
+    name: "STL",
+    color: 0xffffff,
+    roughness: 0.5,
+    metalness: 0,
+    vertexColors: hasColors,
+    transparent: hasColors && alpha < 1,
+    opacity: hasColors ? alpha : 1,
+    side: THREE.FrontSide,
+  });
+  return new THREE.Mesh(geometry, material);
 }
 
 function extractModelAsset(root) {
@@ -625,6 +648,7 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange,
   }
 
   const objLoader = new OBJLoader();
+  const stlLoader = new STLLoader();
   const usdLoader = new USDLoader();
   /** @type {Map<string, { format: string, fileName: string, data: ArrayBuffer }>} */
   const importedSourceStore = new Map();
@@ -659,6 +683,16 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange,
 
       if (format === "obj") {
         objLoader.load(url, onLoaded, undefined, reject);
+        return;
+      }
+
+      if (format === "stl") {
+        stlLoader.load(
+          url,
+          (geometry) => onLoaded(wrapStlGeometry(geometry)),
+          undefined,
+          reject
+        );
         return;
       }
 
@@ -711,6 +745,11 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange,
         if (format === "obj") {
           const text = new TextDecoder().decode(buffer);
           onLoaded(objLoader.parse(text));
+          return;
+        }
+
+        if (format === "stl") {
+          onLoaded(wrapStlGeometry(stlLoader.parse(buffer)));
           return;
         }
 
@@ -1044,6 +1083,16 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange,
     return { ok: true, baseName };
   }
 
+  function exportMorphStl() {
+    if (!mesh) return { ok: false, reason: "No morphogenesis mesh." };
+    const baseName = exportBaseName();
+    const exportMesh = prepareExportMesh();
+    const stl = new STLExporter().parse(exportMesh, { binary: true });
+    exportMesh.geometry.dispose();
+    downloadBlob(new Blob([stl], { type: "model/stl" }), `${baseName}.stl`);
+    return { ok: true, baseName };
+  }
+
   async function exportMorph() {
     const json = exportMorphJson();
     if (!json.ok) return json;
@@ -1082,6 +1131,7 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange,
     exportMorph,
     exportMorphGlb,
     exportMorphObj,
+    exportMorphStl,
     exportMorphJson,
     isActive: () => !!mesh,
   };

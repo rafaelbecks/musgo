@@ -14,13 +14,14 @@ const CLOSE_ICON_SVG = `
 
 function displayName(filename) {
   return filename
-    .replace(/\.(glb|usdz|obj)$/i, "")
+    .replace(/\.(glb|usdz|obj|stl)$/i, "")
     .replace(/-/g, " ");
 }
 
 function modelMime(filename) {
   if (/\.usdz$/i.test(filename)) return "model/vnd.usdz+zip";
   if (/\.obj$/i.test(filename)) return "model/obj";
+  if (/\.stl$/i.test(filename)) return "model/stl";
   return "model/gltf-binary";
 }
 

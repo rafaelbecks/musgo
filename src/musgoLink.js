@@ -1,5 +1,5 @@
 /**
- * Deep link for importing a model into MUSGO (USDZ / GLB / OBJ).
+ * Deep link for importing a model into MUSGO (USDZ / GLB / OBJ / STL).
  *
  * Installed PWA (Chrome/Edge) registers `web+musgo` via manifest
  * protocol_handlers. ESPORA (and anyone else) can open:
@@ -66,7 +66,15 @@ export function parseMusgoImport(href = window.location.href) {
   }
 
   const token = direct.toLowerCase();
-  if (token === "usdz" || token === "1" || token === "true" || token === "model") {
+  if (
+    token === "usdz" ||
+    token === "stl" ||
+    token === "glb" ||
+    token === "obj" ||
+    token === "1" ||
+    token === "true" ||
+    token === "model"
+  ) {
     return {
       wantsImport: true,
       src: null,
@@ -146,10 +154,12 @@ export async function fetchImportSource(src) {
   }
   const type =
     blob.type ||
-    (/\.obj$/i.test(name)
-      ? "model/obj"
-      : /\.glb$/i.test(name)
-        ? "model/gltf-binary"
-        : "model/vnd.usdz+zip");
+    (/\.stl$/i.test(name)
+      ? "model/stl"
+      : /\.obj$/i.test(name)
+        ? "model/obj"
+        : /\.glb$/i.test(name)
+          ? "model/gltf-binary"
+          : "model/vnd.usdz+zip");
   return new File([blob], name, { type });
 }

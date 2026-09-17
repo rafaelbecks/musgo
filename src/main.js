@@ -123,7 +123,7 @@ async function openExternalFile(file, fileHandle = null) {
     return;
   }
 
-  window.alert("Open a .organism, .usdz, .glb or .obj file.");
+  window.alert("Open a .organism, .usdz, .glb, .obj or .stl file.");
 }
 
 async function handleImportHref(href) {
