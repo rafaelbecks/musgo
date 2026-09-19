@@ -7,7 +7,95 @@ export { NOISE_TARGETS, NOISE_TARGET_LABELS };
 
 const _point = new THREE.Vector3();
 const _offset = new THREE.Vector3();
+const _va = new THREE.Vector3();
+const _vb = new THREE.Vector3();
+const _vc = new THREE.Vector3();
+const _cb = new THREE.Vector3();
+const _ab = new THREE.Vector3();
 const noiseCache = new Map();
+
+/**
+ * Smooth normals by welding identical positions, without changing UV islands.
+ * Needed when a mesh is non-indexed (USDZ) so Three's computeVertexNormals
+ * would otherwise produce one normal per triangle.
+ */
+export function computePositionSharedNormals(geometry) {
+  const posAttr = geometry.attributes.position;
+  if (!posAttr) return geometry;
+
+  if (!geometry.boundingBox) geometry.computeBoundingBox();
+  const size = new THREE.Vector3();
+  geometry.boundingBox.getSize(size);
+  const maxDim = Math.max(size.x, size.y, size.z, 1e-6);
+  const quant = 1 / Math.max(maxDim * 1e-7, 1e-8);
+
+  const hashOf = (x, y, z) =>
+    `${Math.round(x * quant)},${Math.round(y * quant)},${Math.round(z * quant)}`;
+
+  const index = geometry.index;
+  const vertCount = posAttr.count;
+  const triCount = (index ? index.count : vertCount) / 3;
+  const vertexHash = new Array(vertCount);
+  const acc = new Map();
+
+  for (let i = 0; i < vertCount; i++) {
+    _va.fromBufferAttribute(posAttr, i);
+    vertexHash[i] = hashOf(_va.x, _va.y, _va.z);
+  }
+
+  const triIndex = (i) => (index ? index.getX(i) : i);
+
+  for (let t = 0; t < triCount; t++) {
+    const i0 = triIndex(t * 3);
+    const i1 = triIndex(t * 3 + 1);
+    const i2 = triIndex(t * 3 + 2);
+    _va.fromBufferAttribute(posAttr, i0);
+    _vb.fromBufferAttribute(posAttr, i1);
+    _vc.fromBufferAttribute(posAttr, i2);
+    _cb.subVectors(_vc, _vb);
+    _ab.subVectors(_va, _vb);
+    _cb.cross(_ab);
+    if (_cb.lengthSq() === 0) continue;
+
+    for (const idx of [i0, i1, i2]) {
+      const h = vertexHash[idx];
+      let n = acc.get(h);
+      if (!n) {
+        n = [0, 0, 0];
+        acc.set(h, n);
+      }
+      n[0] += _cb.x;
+      n[1] += _cb.y;
+      n[2] += _cb.z;
+    }
+  }
+
+  const normals = new Float32Array(vertCount * 3);
+  for (let i = 0; i < vertCount; i++) {
+    const n = acc.get(vertexHash[i]);
+    if (n) {
+      _va.set(n[0], n[1], n[2]);
+      if (_va.lengthSq() > 0) _va.normalize();
+      else _va.set(0, 1, 0);
+    } else {
+      _va.set(0, 1, 0);
+    }
+    normals[i * 3] = _va.x;
+    normals[i * 3 + 1] = _va.y;
+    normals[i * 3 + 2] = _va.z;
+  }
+
+  geometry.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
+  return geometry;
+}
+
+function refreshGeometryNormals(geometry) {
+  if (geometry.userData.smoothByPosition || !geometry.index) {
+    computePositionSharedNormals(geometry);
+    return;
+  }
+  geometry.computeVertexNormals();
+}
 
 function getNoise3d(seed) {
   const key = Math.floor(seed);
@@ -18,7 +106,15 @@ function getNoise3d(seed) {
 export function captureBaseGeometry(geometry) {
   const position = geometry.attributes.position;
   geometry.userData.basePosition = new Float32Array(position.array);
-  geometry.computeVertexNormals();
+  // Keep authored / loader normals. Recomputing on non-indexed USDZ
+  // triangles produces per-face (faceted) shading.
+  if (!geometry.attributes.normal) {
+    if (geometry.userData.smoothByPosition || !geometry.index) {
+      computePositionSharedNormals(geometry);
+    } else {
+      geometry.computeVertexNormals();
+    }
+  }
   geometry.userData.baseNormal = new Float32Array(geometry.attributes.normal.array);
 }
 
@@ -56,7 +152,7 @@ function applyWholeNoise(geometry, params, mix, timeSeconds) {
   }
 
   position.needsUpdate = true;
-  geometry.computeVertexNormals();
+  refreshGeometryNormals(geometry);
 }
 
 /**
@@ -123,7 +219,7 @@ function applyElementNoise(geometry, params, mix, timeSeconds) {
   }
 
   position.needsUpdate = true;
-  geometry.computeVertexNormals();
+  refreshGeometryNormals(geometry);
 }
 
 export function applyNoiseDeform(geometry, params, mix, timeSeconds = 0) {

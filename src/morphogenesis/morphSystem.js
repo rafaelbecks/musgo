@@ -7,12 +7,13 @@ import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { STLLoader } from "three/addons/loaders/STLLoader.js";
 import { USDLoader } from "three/addons/loaders/USDLoader.js";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
-import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { mergeGeometries, mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
 import { morphParams } from "./morphParams.js";
 import { createMorphGeometry, getMorphSide } from "./morphGeometries.js";
 import {
   applyNoiseDeform,
   captureBaseGeometry,
+  computePositionSharedNormals,
 } from "./noiseDeform.js";
 import { modelFileFormat } from "../ui/modelFilePicker.js";
 
@@ -206,6 +207,44 @@ function wrapStlGeometry(geometry) {
   return new THREE.Mesh(geometry, material);
 }
 
+/**
+ * USDLoader expands meshes to unique-per-corner vertices (no index).
+ * computeVertexNormals() on that is per-face, so photogrammetry USDZ looks
+ * faceted vs Blender / Quick Look. Weld shared corners, then smooth.
+ */
+function prepareImportedGeometry(geometry) {
+  if (!geometry?.attributes?.position) return geometry;
+
+  const positionCount = geometry.attributes.position.count;
+  const uniqueCorners =
+    !geometry.index || geometry.index.count === positionCount;
+
+  let prepared = geometry;
+  if (uniqueCorners) {
+    geometry.deleteAttribute("normal");
+    geometry.computeBoundingBox();
+    const size = new THREE.Vector3();
+    geometry.boundingBox.getSize(size);
+    const maxDim = Math.max(size.x, size.y, size.z, 1e-6);
+    prepared = mergeVertices(geometry, Math.max(maxDim * 1e-7, 1e-8));
+    if (prepared !== geometry) geometry.dispose();
+  }
+
+  const stillUnique =
+    !prepared.index ||
+    prepared.index.count === prepared.attributes.position.count;
+
+  if (stillUnique) {
+    computePositionSharedNormals(prepared);
+    prepared.userData.smoothByPosition = true;
+  } else if (!prepared.attributes.normal) {
+    prepared.computeVertexNormals();
+  }
+
+  prepared.computeBoundingBox();
+  return prepared;
+}
+
 function extractModelAsset(root) {
   root.updateMatrixWorld(true);
   const meshes = [];
@@ -216,10 +255,9 @@ function extractModelAsset(root) {
 
   if (meshes.length === 1) {
     const source = meshes[0];
-    const geometry = source.geometry.clone();
-    geometry.applyMatrix4(source.matrixWorld);
-    if (!geometry.attributes.normal) geometry.computeVertexNormals();
-    geometry.computeBoundingBox();
+    const geometry = prepareImportedGeometry(
+      source.geometry.clone().applyMatrix4(source.matrixWorld)
+    );
 
     const sourceMaterials = Array.isArray(source.material)
       ? source.material
@@ -246,10 +284,9 @@ function extractModelAsset(root) {
     }
   }
 
-  const geometry = mergeGeometries(geometries, true);
-  if (!geometry) return null;
-  if (!geometry.attributes.normal) geometry.computeVertexNormals();
-  geometry.computeBoundingBox();
+  const merged = mergeGeometries(geometries, true);
+  if (!merged) return null;
+  const geometry = prepareImportedGeometry(merged);
   return {
     geometry,
     materials,
