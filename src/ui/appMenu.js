@@ -95,6 +95,13 @@ export function createAppMenu({
           icon: "move-outline",
           checked: () => actions.isAxes?.(),
         },
+        {
+          id: "fps",
+          label: "FPS",
+          type: "checkbox",
+          icon: "speedometer-outline",
+          checked: () => actions.isFps?.(),
+        },
       ],
     },
     {

@@ -21,6 +21,7 @@ import { createHelpModal } from "./ui/helpModal.js";
 import { createExamplesModal } from "./ui/examplesModal.js";
 import { createFotogrametriasModal } from "./ui/fotogrametriasModal.js";
 import { createAppMenu } from "./ui/appMenu.js";
+import { createFpsGraph } from "./ui/fpsGraph.js";
 import { createUnderwaterSystem } from "./underwater/underwaterSystem.js";
 import { modulationSystem } from "./modulation/modulationSystem.js";
 import { resolveModParam } from "./modulation/modulationTargets.js";
@@ -386,6 +387,8 @@ export async function bootApp({
     },
   });
 
+  const fpsGraph = createFpsGraph(mount);
+
   createAppMenu({
     actions: {
       new: () => toolsPanel.newOrganism(),
@@ -406,6 +409,7 @@ export async function bootApp({
       isWireframe: () => params.wireframe,
       isGrid: () => params.showGrid,
       isAxes: () => params.showAxes,
+      isFps: () => fpsGraph.isVisible(),
       wireframe: () => {
         params.wireframe = !params.wireframe;
         if (params.wireframe) {
@@ -426,6 +430,7 @@ export async function bootApp({
         params.showAxes = !params.showAxes;
         sceneSystem.rebuildAxes();
       },
+      fps: () => fpsGraph.toggle(),
     },
   });
 
@@ -506,52 +511,57 @@ export async function bootApp({
   let wasModulating = false;
 
   function animate() {
-    const delta = Math.min(0.05, clock.elapsed ? (performance.now() - clock.elapsed) / 1000 : 0.016);
-    clock.elapsed = performance.now();
+    fpsGraph.begin();
+    try {
+      const delta = Math.min(0.05, clock.elapsed ? (performance.now() - clock.elapsed) / 1000 : 0.016);
+      clock.elapsed = performance.now();
 
-    if (morphParams.shape !== lastShape) {
-      lastShape = morphParams.shape;
-      toolsPanel.refreshModulation?.();
-    }
-
-    const restoreMorphMod = modulationSystem.applyToParams(
-      morphParams,
-      resolveModParam
-    );
-    const restoreViewerMod = modulationSystem.applyToParams(params, resolveModParam);
-    const modulating = Boolean(restoreMorphMod || restoreViewerMod);
-
-    const inVr = sceneSystem.vr?.isPresenting?.() ?? false;
-    if (!inVr) {
-      input.applyWalkMovement(delta);
-      cameraFocus.update();
-      // OrbitControls first, then MIDI zoom override (so damping doesn't fight us)
-      sceneSystem.controls.update();
-      const { rotated } = updateMidiSmoothing(delta, {
-        camera: sceneSystem.camera,
-        controls: sceneSystem.controls,
-      });
-      if (rotated || modulating || wasModulating) {
-        morphSystem.applyTransform();
+      if (morphParams.shape !== lastShape) {
+        lastShape = morphParams.shape;
+        toolsPanel.refreshModulation?.();
       }
-    } else {
-      sceneSystem.vr.update();
+
+      const restoreMorphMod = modulationSystem.applyToParams(
+        morphParams,
+        resolveModParam
+      );
+      const restoreViewerMod = modulationSystem.applyToParams(params, resolveModParam);
+      const modulating = Boolean(restoreMorphMod || restoreViewerMod);
+
+      const inVr = sceneSystem.vr?.isPresenting?.() ?? false;
+      if (!inVr) {
+        input.applyWalkMovement(delta);
+        cameraFocus.update();
+        // OrbitControls first, then MIDI zoom override (so damping doesn't fight us)
+        sceneSystem.controls.update();
+        const { rotated } = updateMidiSmoothing(delta, {
+          camera: sceneSystem.camera,
+          controls: sceneSystem.controls,
+        });
+        if (rotated || modulating || wasModulating) {
+          morphSystem.applyTransform();
+        }
+      } else {
+        sceneSystem.vr.update();
+        if (modulating || wasModulating) {
+          morphSystem.applyTransform();
+        }
+      }
+
       if (modulating || wasModulating) {
-        morphSystem.applyTransform();
+        morphSystem.applyLiveState();
       }
+      morphSystem.update(delta);
+      underwaterSystem.update(delta);
+
+      sceneSystem.render();
+
+      restoreMorphMod?.();
+      restoreViewerMod?.();
+      wasModulating = modulating;
+    } finally {
+      fpsGraph.end();
     }
-
-    if (modulating || wasModulating) {
-      morphSystem.applyLiveState();
-    }
-    morphSystem.update(delta);
-    underwaterSystem.update(delta);
-
-    sceneSystem.render();
-
-    restoreMorphMod?.();
-    restoreViewerMod?.();
-    wasModulating = modulating;
   }
 
   // WebXR requires setAnimationLoop (not requestAnimationFrame).
