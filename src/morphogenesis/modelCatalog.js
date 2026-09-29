@@ -15,6 +15,7 @@ export const FALLBACK_MODELS = [
   "craneo/craneo-no-plate",
   "craneo/craneo-reconstruct",
   "imported/mandibula-reconstruct",
+  "acuaticos/alcantarilla",
   "acuaticos/alcantarilla1",
   "acuaticos/alcantarilla2",
   "acuaticos/alcantarilla3",
