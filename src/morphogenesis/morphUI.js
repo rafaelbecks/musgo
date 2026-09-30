@@ -25,7 +25,15 @@ import {
   confirmDiscardUnsavedChanges,
   markOrganismBaseline,
   setOrganismModelAssetHooks,
+  applyOrganismState,
 } from "./organismState.js";
+import {
+  anchorOrganismHistory,
+  commitOrganismHistoryNow,
+  realignOrganismHistoryCursor,
+  runWithoutOrganismHistory,
+  setOrganismHistoryApply,
+} from "./organismHistory.js";
 import { pickImageFile } from "../ui/imageFilePicker.js";
 import * as TweakpaneRotationInputPlugin from "@0b5vr/tweakpane-plugin-rotation";
 
@@ -1005,10 +1013,8 @@ export async function setupMorphUI(
     onChange
   );
 
-  async function applyLoadedOrganism({ state, file, fileHandle = null }) {
-    adoptLoadedOrganism({ state, file, fileHandle });
-
-    if (state.modelAsset) {
+  async function refreshOrganismControls(state) {
+    if (state?.modelAsset) {
       try {
         const { modelFile } = await morphSystem.loadModelAssetFromOrganism(
           state.modelAsset
@@ -1032,10 +1038,22 @@ export async function setupMorphUI(
     syncRotationBinding();
     refreshPane?.();
     await applyOrganismMidi(state);
-    await onOrganismLoaded?.(state);
-    onChange?.();
-    // Re-baseline after async env/pane side-effects so we don't stay dirty
-    markOrganismClean();
+    await onOrganismLoaded?.(state ?? null);
+    await onChange?.();
+  }
+
+  async function applyLoadedOrganism({ state, file, fileHandle = null }) {
+    commitOrganismHistoryNow();
+    await runWithoutOrganismHistory(async () => {
+      adoptLoadedOrganism({ state, file, fileHandle });
+      try {
+        await refreshOrganismControls(state);
+      } finally {
+        // Re-baseline after async env/pane side-effects so we don't stay dirty
+        markOrganismClean();
+        anchorOrganismHistory("Abierto");
+      }
+    });
     console.info(`[organism] loaded ${file?.name ?? state.id}`);
   }
 
@@ -1046,18 +1064,17 @@ export async function setupMorphUI(
   }
 
   async function newOrganism() {
+    commitOrganismHistoryNow();
     if (!confirmDiscardUnsavedChanges()) return;
-    await createNewOrganism();
-    buildModelControls();
-    syncShapeFolders();
-    syncGlassFolder();
-    syncCustomTexFolder();
-    syncModelTextureFolder();
-    syncRotationBinding();
-    refreshPane?.();
-    await onOrganismLoaded?.(null);
-    await onChange?.();
-    markOrganismBaseline();
+    await runWithoutOrganismHistory(async () => {
+      await createNewOrganism();
+      try {
+        await refreshOrganismControls(null);
+      } finally {
+        markOrganismBaseline();
+        anchorOrganismHistory("Nuevo", { replace: true });
+      }
+    });
     console.info("[organism] new specimen");
   }
 
@@ -1066,6 +1083,13 @@ export async function setupMorphUI(
     console.info(`[organism] saved ${result.filename} (${result.method})`);
     return result;
   }
+
+  setOrganismHistoryApply(async (state) => {
+    applyOrganismState(state);
+    await refreshOrganismControls(state);
+    syncOrganismDirty();
+    realignOrganismHistoryCursor();
+  });
 
   syncShapeFolders();
 

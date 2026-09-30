@@ -72,6 +72,15 @@ let midiHooks = null;
 /** @type {{ getForSave: () => object | null } | null} */
 let modelAssetHooks = null;
 
+/** Filled by the history module so edits and saves can be recorded without a circular import. */
+let onEdited = () => {};
+let onFileSaved = () => {};
+
+export function setOrganismHistoryBridge({ onEdit, onSave } = {}) {
+  if (onEdit) onEdited = onEdit;
+  if (onSave) onFileSaved = onSave;
+}
+
 /**
  * Register MIDI serialize/apply hooks (from tools panel).
  * Lets .organism files store zoom/smoothing/mapping/device prefs.
@@ -139,6 +148,8 @@ const session = {
   dirty: false,
 };
 
+const DRAFT_ID_KEY = "musgo.organism.draftId";
+
 function shortUuid() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
     return crypto.randomUUID().replace(/-/g, "").slice(0, 8);
@@ -146,8 +157,44 @@ function shortUuid() {
   return Math.random().toString(16).slice(2, 10);
 }
 
+function readDraftId() {
+  try {
+    if (typeof sessionStorage === "undefined") return null;
+    return sessionStorage.getItem(DRAFT_ID_KEY) || null;
+  } catch {
+    return null;
+  }
+}
+
+function writeDraftId(id) {
+  try {
+    if (typeof sessionStorage === "undefined") return;
+    if (id) sessionStorage.setItem(DRAFT_ID_KEY, id);
+    else sessionStorage.removeItem(DRAFT_ID_KEY);
+  } catch {
+    // private mode / blocked storage
+  }
+}
+
 export function createOrganismId() {
   return shortUuid();
+}
+
+/**
+ * Id for an unsaved specimen. A refresh in this tab keeps the same id so its
+ * history stays put; a new specimen gets a new one and does not share a bucket.
+ */
+export function ensureOrganismDraftId({ fresh = false } = {}) {
+  if (!fresh && session.id) return session.id;
+  const id = (!fresh && readDraftId()) || createOrganismId();
+  session.id = id;
+  writeDraftId(id);
+  return id;
+}
+
+/** Drop the remembered unsaved id once the specimen is saved or replaced by a file. */
+export function releaseOrganismDraftId() {
+  writeDraftId(null);
 }
 
 export function organismFilename(id = createOrganismId()) {
@@ -182,7 +229,10 @@ function contentFingerprint() {
   });
 }
 
-export function serializeOrganism({ id = session.id ?? createOrganismId() } = {}) {
+export function serializeOrganism({
+  id = session.id ?? createOrganismId(),
+  includeModel = true,
+} = {}) {
   clampMorphParams();
   const state = {
     type: ORGANISM_TYPE,
@@ -196,9 +246,21 @@ export function serializeOrganism({ id = session.id ?? createOrganismId() } = {}
   };
   const midi = midiHooks?.serialize?.();
   if (midi) state.midi = midi;
-  const modelAsset = modelAssetHooks?.getForSave?.();
-  if (modelAsset) state.modelAsset = modelAsset;
+  if (includeModel) {
+    const modelAsset = modelAssetHooks?.getForSave?.();
+    if (modelAsset) state.modelAsset = modelAsset;
+  }
   return state;
+}
+
+/** Plain snapshot used by undo/redo. Omits the embedded model blob. */
+export function getOrganismMemento() {
+  const state = serializeOrganism({ includeModel: false });
+  delete state.createdAt;
+  return {
+    fingerprint: contentFingerprint(),
+    state,
+  };
 }
 
 export function applyOrganismState(state) {
@@ -292,6 +354,7 @@ export function syncOrganismDirty() {
     session.dirty = dirty;
     refreshSpecimenLabel();
   }
+  onEdited();
   return session.dirty;
 }
 
@@ -301,7 +364,7 @@ export function hasUnsavedOrganismChanges() {
 }
 
 /**
- * Snapshot current params as the clean baseline (saved file or untitled New).
+ * Snapshot current params as the clean baseline (saved file or a new unsaved specimen).
  * Unlike markOrganismClean, works without a filename.
  */
 export function markOrganismBaseline() {
@@ -329,10 +392,10 @@ export function markOrganismClean() {
 export function setSpecimenLabel(filename) {
   session.filename = filename || null;
   if (!filename) {
-    session.id = null;
     session.fileHandle = null;
     session.cleanFingerprint = null;
     session.dirty = false;
+    ensureOrganismDraftId({ fresh: true });
   }
   refreshSpecimenLabel();
 }
@@ -367,6 +430,8 @@ export function downloadOrganism(state = serializeOrganism()) {
   a.click();
   URL.revokeObjectURL(url);
   markSessionClean({ id: state.id, filename, fileHandle: null });
+  releaseOrganismDraftId();
+  onFileSaved();
   return { filename, id: state.id };
 }
 
@@ -385,6 +450,8 @@ export async function saveOrganism({ forcePicker = false } = {}) {
       filename: session.filename ?? session.fileHandle.name,
       fileHandle: session.fileHandle,
     });
+    releaseOrganismDraftId();
+    onFileSaved();
     return { filename: session.filename, id, method: "handle" };
   }
 
@@ -395,6 +462,8 @@ export async function saveOrganism({ forcePicker = false } = {}) {
     });
     await writeToFileHandle(handle, state);
     markSessionClean({ id, filename: handle.name, fileHandle: handle });
+    releaseOrganismDraftId();
+    onFileSaved();
     return { filename: handle.name, id, method: "picker" };
   }
 
@@ -471,6 +540,7 @@ function pickOrganismFileInput() {
  */
 export function adoptLoadedOrganism({ state, file, fileHandle = null }) {
   const id = applyOrganismState(state) ?? state.id ?? createOrganismId();
+  releaseOrganismDraftId();
   markSessionClean({
     id,
     filename: file?.name ?? organismFilename(id),
@@ -490,9 +560,9 @@ export async function createNewOrganism() {
   if (midiHooks?.reset) {
     await midiHooks.reset();
   }
-  session.id = null;
   session.filename = null;
   session.fileHandle = null;
+  ensureOrganismDraftId({ fresh: true });
   markOrganismBaseline();
 }
 

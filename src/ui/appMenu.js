@@ -1,5 +1,5 @@
 /**
- * Classic File / View / About menubar for the viewer header.
+ * Classic File / Edit / View / About menubar for the viewer header.
  */
 
 function menuIcon(name) {
@@ -21,7 +21,7 @@ export function createAppMenu({
   parent = document.querySelector("#viewer-panel .panel-header"),
   actions = {},
 } = {}) {
-  if (!parent) return { destroy() {} };
+  if (!parent) return { destroy() {}, refresh() {}, close() {} };
 
   const bar = document.createElement("nav");
   bar.className = "app-menu";
@@ -71,6 +71,28 @@ export function createAppMenu({
       ],
     },
     {
+      id: "edit",
+      label: "Editar",
+      items: [
+        {
+          id: "undo",
+          label: "Deshacer",
+          shortcut: "⌘Z",
+          icon: "arrow-undo-outline",
+          enabled: () => actions.canUndo?.(),
+        },
+        {
+          id: "redo",
+          label: "Rehacer",
+          shortcut: "⇧⌘Z",
+          icon: "arrow-redo-outline",
+          enabled: () => actions.canRedo?.(),
+        },
+        { type: "separator" },
+        { id: "history", label: "Historial…", icon: "time-outline" },
+      ],
+    },
+    {
       id: "view",
       label: "Vista",
       items: [
@@ -115,6 +137,7 @@ export function createAppMenu({
 
   let openMenuId = null;
   const menuRoots = new Map();
+  const actionItems = new Map();
 
   function closeSubmenus(scope = bar) {
     scope.querySelectorAll(".app-menu__submenu-item.is-open").forEach((el) => {
@@ -143,7 +166,21 @@ export function createAppMenu({
     if (!root) return;
     root.classList.add("is-open");
     root.querySelector(".app-menu__trigger")?.setAttribute("aria-expanded", "true");
-    refreshCheckboxes(root);
+    refresh();
+  }
+
+  function applyEnabled(btn, item) {
+    const on = Boolean(item.enabled());
+    btn.disabled = !on;
+    btn.setAttribute("aria-disabled", on ? "false" : "true");
+  }
+
+  function refresh() {
+    bar.querySelectorAll("[data-enabled]").forEach((el) => {
+      const item = actionItems.get(el.dataset.action);
+      if (item?.enabled) applyEnabled(el, item);
+    });
+    for (const root of menuRoots.values()) refreshCheckboxes(root);
   }
 
   function refreshCheckboxes(root) {
@@ -196,6 +233,11 @@ export function createAppMenu({
     btn.className = "app-menu__action";
     btn.setAttribute("role", "menuitem");
     btn.dataset.action = item.id;
+    actionItems.set(item.id, item);
+    if (typeof item.enabled === "function") {
+      btn.dataset.enabled = "1";
+      applyEnabled(btn, item);
+    }
     const iconHtml = item.icon
       ? menuIcon(item.icon)
       : `<span class="app-menu__icon" aria-hidden="true"></span>`;
@@ -312,8 +354,11 @@ export function createAppMenu({
     parent.appendChild(bar);
   }
 
+  refresh();
+
   return {
     close: closeAll,
+    refresh,
     destroy() {
       document.removeEventListener("click", onDocClick);
       window.removeEventListener("keydown", onKeyDown);

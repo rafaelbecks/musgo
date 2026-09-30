@@ -14,13 +14,27 @@ import { createToolsPanel } from "./ui/toolsPanel.js";
 import { initPanelResize } from "./ui/panelResize.js";
 import { createCameraFocus } from "./scene/cameraFocus.js";
 import { morphParams } from "./morphogenesis/morphParams.js";
-import { markOrganismBaseline } from "./morphogenesis/organismState.js";
+import {
+  ensureOrganismDraftId,
+  markOrganismBaseline,
+  syncOrganismDirty,
+} from "./morphogenesis/organismState.js";
+import {
+  anchorOrganismHistory,
+  canRedoOrganism,
+  canUndoOrganism,
+  isOrganismHistoryReady,
+  redoOrganism,
+  subscribeOrganismHistory,
+  undoOrganism,
+} from "./morphogenesis/organismHistory.js";
 import { midiNoteToPitchMultiplier } from "./midi/notePitch.js";
 import { updateMidiSmoothing } from "./midi/midiCamera.js";
 import { createHelpModal } from "./ui/helpModal.js";
 import { createExamplesModal } from "./ui/examplesModal.js";
 import { createFotogrametriasModal } from "./ui/fotogrametriasModal.js";
 import { createAppMenu } from "./ui/appMenu.js";
+import { createHistoryModal } from "./ui/historyModal.js";
 import { createFpsGraph } from "./ui/fpsGraph.js";
 import { createUnderwaterSystem } from "./underwater/underwaterSystem.js";
 import { modulationSystem } from "./modulation/modulationSystem.js";
@@ -388,13 +402,19 @@ export async function bootApp({
   });
 
   const fpsGraph = createFpsGraph(mount);
+  const historyModal = createHistoryModal();
 
-  createAppMenu({
+  const appMenu = createAppMenu({
     actions: {
       new: () => toolsPanel.newOrganism(),
       open: () => toolsPanel.openOrganism(),
       save: () => toolsPanel.saveOrganism(),
       saveAs: () => toolsPanel.saveOrganismAs(),
+      undo: () => undoOrganism(),
+      redo: () => redoOrganism(),
+      history: () => historyModal.open(),
+      canUndo: () => canUndoOrganism(),
+      canRedo: () => canRedoOrganism(),
       importGlb: () => toolsPanel.importModel(null, "glb"),
       importObj: () => toolsPanel.importModel(null, "obj"),
       importUsdz: () => toolsPanel.importModel(null, "usdz"),
@@ -421,18 +441,23 @@ export async function bootApp({
         morphUiHooks.refreshViewer?.();
         toolsPanel.refreshModelTexture?.();
         morphSystem.applyMaterial();
+        syncOrganismDirty();
       },
       grid: () => {
         params.showGrid = !params.showGrid;
         sceneSystem.rebuildGrid();
+        syncOrganismDirty();
       },
       axes: () => {
         params.showAxes = !params.showAxes;
         sceneSystem.rebuildAxes();
+        syncOrganismDirty();
       },
       fps: () => fpsGraph.toggle(),
     },
   });
+
+  subscribeOrganismHistory(() => appMenu.refresh());
 
   window.addEventListener("keydown", (ev) => {
     const mod = ev.metaKey || ev.ctrlKey;
@@ -501,7 +526,11 @@ export async function bootApp({
 
   await morphSystem.sync();
   await toolsPanel.refreshModelTexture?.();
-  if (!pendingOrganismFile) markOrganismBaseline();
+  if (!pendingOrganismFile) {
+    ensureOrganismDraftId();
+    markOrganismBaseline();
+  }
+  if (!isOrganismHistoryReady()) anchorOrganismHistory("Inicio");
   if (params.autoAnalyze) {
     await runAnalysis();
   }
