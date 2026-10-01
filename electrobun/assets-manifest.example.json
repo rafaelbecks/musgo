@@ -1,0 +1,36 @@
+{
+  "name": "musgo-assets",
+  "version": "1.0.0",
+  "description": "Remote content packs for MUSGO desktop / web. Binaries are not in this git repo long-term.",
+  "cdnBase": "https://example.invalid/musgo-assets/v1/",
+  "packs": [
+    {
+      "id": "examples-v1",
+      "archive": "examples-v1.zip",
+      "sha256": "REPLACE_AFTER_PUBLISH",
+      "bytes": 160000,
+      "installAs": "examples"
+    },
+    {
+      "id": "models-core-v1",
+      "archive": "models-core-v1.zip",
+      "sha256": "REPLACE_AFTER_PUBLISH",
+      "bytes": 120000000,
+      "installAs": "glb"
+    },
+    {
+      "id": "env-hdr-v1",
+      "archive": "env-hdr-v1.zip",
+      "sha256": "REPLACE_AFTER_PUBLISH",
+      "bytes": 6000000,
+      "installAs": "env"
+    },
+    {
+      "id": "env-exr-v1",
+      "archive": "env-exr-v1.zip",
+      "sha256": "REPLACE_AFTER_PUBLISH",
+      "bytes": 1300000000,
+      "installAs": "env"
+    }
+  ]
+}
