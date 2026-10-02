@@ -72,6 +72,13 @@ let midiHooks = null;
 /** @type {{ getForSave: () => object | null } | null} */
 let modelAssetHooks = null;
 
+/** @type {{
+ *   getRevision: () => number,
+ *   capture: () => { revision: number, positions: Float32Array } | null,
+ *   apply: (positions: Float32Array) => boolean,
+ * } | null} */
+let sculptHooks = null;
+
 /** Filled by the history module so edits and saves can be recorded without a circular import. */
 let onEdited = () => {};
 let onFileSaved = () => {};
@@ -92,6 +99,11 @@ export function setOrganismMidiHooks(hooks) {
 /** Register embedded-model serialize hook (from morph system). */
 export function setOrganismModelAssetHooks(hooks) {
   modelAssetHooks = hooks;
+}
+
+/** Register sculpt base-cage hooks for undo/redo fingerprints + restore. */
+export function setOrganismSculptHooks(hooks) {
+  sculptHooks = hooks;
 }
 
 /** Restore morph / viewer / underwater to factory defaults (before file merge). */
@@ -226,6 +238,7 @@ function contentFingerprint() {
     underwater: Object.fromEntries(UNDERWATER_KEYS.map((k) => [k, viewerParams[k]])),
     midi: midiHooks?.serialize?.() ?? null,
     modulation: modulationSystem.serialize(),
+    sculpt: sculptHooks?.getRevision?.() ?? 0,
   });
 }
 
@@ -260,6 +273,8 @@ export function getOrganismMemento() {
   return {
     fingerprint: contentFingerprint(),
     state,
+    /** In-memory only — not persisted to localStorage with the param state. */
+    sculpt: sculptHooks?.capture?.() ?? null,
   };
 }
 

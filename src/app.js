@@ -17,6 +17,7 @@ import { morphParams } from "./morphogenesis/morphParams.js";
 import {
   ensureOrganismDraftId,
   markOrganismBaseline,
+  setOrganismSculptHooks,
   syncOrganismDirty,
 } from "./morphogenesis/organismState.js";
 import {
@@ -36,6 +37,7 @@ import { createFotogrametriasModal } from "./ui/fotogrametriasModal.js";
 import { createAppMenu } from "./ui/appMenu.js";
 import { createHistoryModal } from "./ui/historyModal.js";
 import { createFpsGraph } from "./ui/fpsGraph.js";
+import { createSculptToolbar } from "./ui/sculptToolbar.js";
 import { createUnderwaterSystem } from "./underwater/underwaterSystem.js";
 import { modulationSystem } from "./modulation/modulationSystem.js";
 import { resolveModParam } from "./modulation/modulationTargets.js";
@@ -72,6 +74,22 @@ export async function bootApp({
     onViewerChange: () => morphUiHooks.refreshViewer(),
   });
   focusHooks.getMesh = () => morphSystem.getAnalysisMesh();
+
+  setOrganismSculptHooks({
+    getRevision: () => morphSystem.getSculptRevision(),
+    capture: () => morphSystem.captureSculptSnapshot(),
+    apply: (snapshot) => morphSystem.applySculptSnapshot(snapshot),
+  });
+
+  const sculptToolbar = createSculptToolbar({
+    mount,
+    camera: sceneSystem.camera,
+    scene: sceneSystem.scene,
+    controls: sceneSystem.controls,
+    domElement: sceneSystem.renderer.domElement,
+    morphSystem,
+    getMesh: () => morphSystem.getAnalysisMesh(),
+  });
 
   let analysisTimer = null;
   let analysisJob = 0;
@@ -430,6 +448,7 @@ export async function bootApp({
       isGrid: () => params.showGrid,
       isAxes: () => params.showAxes,
       isFps: () => fpsGraph.isVisible(),
+      isSculptToolbar: () => sculptToolbar.isVisible(),
       wireframe: () => {
         params.wireframe = !params.wireframe;
         if (params.wireframe) {
@@ -454,6 +473,7 @@ export async function bootApp({
         syncOrganismDirty();
       },
       fps: () => fpsGraph.toggle(),
+      sculptToolbar: () => sculptToolbar.toggle(),
     },
   });
 

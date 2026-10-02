@@ -13,6 +13,7 @@ import { createMorphGeometry, getMorphSide } from "./morphGeometries.js";
 import {
   applyNoiseDeform,
   captureBaseGeometry,
+  refreshGeometryNormals,
   computePositionSharedNormals,
 } from "./noiseDeform.js";
 import { modelFileFormat } from "../ui/modelFilePicker.js";
@@ -1045,6 +1046,76 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange,
     return mesh;
   }
 
+  let sculptRevision = 0;
+
+  function getSculptRevision() {
+    return sculptRevision;
+  }
+
+  function bumpSculptRevision() {
+    sculptRevision += 1;
+    return sculptRevision;
+  }
+
+  /** Snapshot of undeformed base positions for undo/redo. */
+  function captureSculptSnapshot() {
+    if (!mesh?.geometry?.userData?.basePosition) return null;
+    return {
+      revision: sculptRevision,
+      positions: new Float32Array(mesh.geometry.userData.basePosition),
+    };
+  }
+
+  function applySculptSnapshot(snapshot) {
+    const positions = snapshot instanceof Float32Array ? snapshot : snapshot?.positions;
+    if (!mesh?.geometry || !positions) return false;
+    const geometry = mesh.geometry;
+    const base = geometry.userData.basePosition;
+    if (!base || base.length !== positions.length) return false;
+    base.set(positions);
+    if (typeof snapshot?.revision === "number") {
+      sculptRevision = snapshot.revision;
+    }
+    // Rebuild base normals from the restored cage, then re-apply noise.
+    const live = geometry.attributes.position;
+    live.array.set(base);
+    live.needsUpdate = true;
+    refreshGeometryNormals(geometry);
+    geometry.userData.baseNormal = new Float32Array(geometry.attributes.normal.array);
+    applyNoiseDeform(geometry, morphParams, noiseMix, elapsed);
+    geometry.computeBoundingBox();
+    geometry.computeBoundingSphere();
+    return true;
+  }
+
+  /**
+   * Apply a sculpt deformation to the base cage and refresh the live mesh.
+   * @param {(ctx: { basePositions: Float32Array, normals: THREE.BufferAttribute, geometry: THREE.BufferGeometry }) => boolean} deformFn
+   */
+  function sculptBase(deformFn) {
+    if (!mesh?.geometry) return false;
+    const geometry = mesh.geometry;
+    if (!geometry.userData.basePosition) captureBaseGeometry(geometry);
+    const basePositions = geometry.userData.basePosition;
+    const modified = deformFn({
+      basePositions,
+      normals: geometry.attributes.normal,
+      geometry,
+    });
+    if (!modified) return false;
+
+    // Keep live positions in sync with base, then re-layer noise.
+    const live = geometry.attributes.position;
+    live.array.set(basePositions);
+    live.needsUpdate = true;
+    refreshGeometryNormals(geometry);
+    geometry.userData.baseNormal = new Float32Array(geometry.attributes.normal.array);
+    applyNoiseDeform(geometry, morphParams, noiseMix, elapsed);
+    geometry.computeBoundingBox();
+    geometry.computeBoundingSphere();
+    return true;
+  }
+
   function getNoiseMix() {
     return noiseMix;
   }
@@ -1163,6 +1234,11 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange,
     usesMultiModelMaterial: () => activeModelUsesMultiMaterial,
     dispose,
     getAnalysisMesh,
+    getSculptRevision,
+    bumpSculptRevision,
+    captureSculptSnapshot,
+    applySculptSnapshot,
+    sculptBase,
     getNoiseMix,
     snapNoiseMix,
     exportMorph,

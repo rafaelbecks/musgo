@@ -124,6 +124,13 @@ export function createAppMenu({
           icon: "speedometer-outline",
           checked: () => actions.isFps?.(),
         },
+        {
+          id: "sculptToolbar",
+          label: "Sculpt toolbar",
+          type: "checkbox",
+          icon: "brush-outline",
+          checked: () => actions.isSculptToolbar?.(),
+        },
       ],
     },
     {

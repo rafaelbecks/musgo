@@ -54,7 +54,7 @@ export const MOD_CATEGORIES = [
   },
   {
     id: "shape",
-    label: "Shape",
+    label: "Primitive",
     getParams: () => SHAPE_COMMON,
   },
   {

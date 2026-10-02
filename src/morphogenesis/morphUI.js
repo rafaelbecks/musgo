@@ -219,7 +219,7 @@ export async function setupMorphUI(
   }
 
   const shapeInput = folder.addBinding(morphParams, "shape", {
-    label: "shape",
+    label: "primitive",
     options: SHAPE_OPTIONS,
   });
   shapeInput.on("change", async () => {
@@ -1084,9 +1084,12 @@ export async function setupMorphUI(
     return result;
   }
 
-  setOrganismHistoryApply(async (state) => {
+  setOrganismHistoryApply(async (state, { sculptSnapshot } = {}) => {
     applyOrganismState(state);
     await refreshOrganismControls(state);
+    if (sculptSnapshot) {
+      morphSystem.applySculptSnapshot?.(sculptSnapshot);
+    }
     syncOrganismDirty();
     realignOrganismHistoryCursor();
   });

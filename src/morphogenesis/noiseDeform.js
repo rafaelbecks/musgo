@@ -89,7 +89,7 @@ export function computePositionSharedNormals(geometry) {
   return geometry;
 }
 
-function refreshGeometryNormals(geometry) {
+export function refreshGeometryNormals(geometry) {
   if (geometry.userData.smoothByPosition || !geometry.index) {
     computePositionSharedNormals(geometry);
     return;

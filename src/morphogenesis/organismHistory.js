@@ -28,7 +28,11 @@ let applyToken = 0;
 let settledToken = 0;
 let tail = Promise.resolve();
 
-/** @type {((state: object) => void | Promise<void>) | null} */
+/** Session-only base-cage snapshots keyed by history entry id (too large for localStorage). */
+/** @type {Map<string, { revision: number, positions: Float32Array }>} */
+const sculptMemory = new Map();
+
+/** @type {((state: object, extras?: { sculptSnapshot?: { revision: number, positions: Float32Array } | null }) => void | Promise<void>) | null} */
 let applyHook = null;
 
 /** @type {Set<() => void>} */
@@ -133,7 +137,8 @@ function loadBucket(key) {
 
 function trim() {
   while (entries.length > MAX_ENTRIES) {
-    entries.shift();
+    const dropped = entries.shift();
+    if (dropped?.id) sculptMemory.delete(dropped.id);
     cursor -= 1;
   }
   if (!entries.length) {
@@ -145,13 +150,20 @@ function trim() {
 }
 
 function snapshotEntry(label, memo) {
-  return {
+  const entry = {
     id: uid(),
     at: Date.now(),
     label: label || "cambio",
     fingerprint: memo.fingerprint,
     state: JSON.parse(JSON.stringify(memo.state)),
   };
+  if (memo.sculpt?.positions instanceof Float32Array) {
+    sculptMemory.set(entry.id, {
+      revision: memo.sculpt.revision ?? 0,
+      positions: memo.sculpt.positions,
+    });
+  }
+  return entry;
 }
 
 function notify() {
@@ -182,7 +194,7 @@ function drifted() {
 
 function fieldLabel(section, key, value) {
   if (section === "modulation") return "modulación";
-  if (key === "shape") return `forma → ${SHAPE_LABELS[value] || value}`;
+  if (key === "shape") return `primitive → ${SHAPE_LABELS[value] || value}`;
   if (key === "environment") return `entorno → ${value}`;
   if (key === "uwEnabled") return value ? "underwater on" : "underwater off";
   if (section === "underwater") {
@@ -237,6 +249,7 @@ export function describeOrganismChange(prevFingerprint, nextFingerprint) {
     ...diffSection(prev, next, "midi"),
     ...diffSection(prev, next, "modulation"),
   ];
+  if (prev.sculpt !== next.sculpt) parts.push("sculpt");
   if (!parts.length) return "cambio";
   const label = parts.length <= 3 ? parts.join(", ") : `${parts.slice(0, 3).join(", ")} +${parts.length - 3}`;
   return label.length > 80 ? `${label.slice(0, 77)}…` : label;
@@ -263,6 +276,7 @@ export function anchorOrganismHistory(label, { replace = false } = {}) {
   if (replace) {
     entries = [];
     cursor = -1;
+    sculptMemory.clear();
     loadedKey = key;
   } else if (!ready || key !== loadedKey) {
     if (ready && loadedKey && key !== loadedKey) persistBucket(loadedKey);
@@ -301,11 +315,18 @@ export function realignOrganismHistoryCursor() {
   if (!ready || cursor < 0 || !entries[cursor]) return;
   const memo = getOrganismMemento();
   if (memo.fingerprint === entries[cursor].fingerprint) return;
+  const id = entries[cursor].id;
   entries[cursor] = {
     ...entries[cursor],
     fingerprint: memo.fingerprint,
     state: JSON.parse(JSON.stringify(memo.state)),
   };
+  if (memo.sculpt?.positions instanceof Float32Array) {
+    sculptMemory.set(id, {
+      revision: memo.sculpt.revision ?? 0,
+      positions: memo.sculpt.positions,
+    });
+  }
   persistBucket();
 }
 
@@ -347,6 +368,10 @@ export function commitOrganismHistoryNow() {
   const memo = getOrganismMemento();
   if (memo.fingerprint === entries[cursor].fingerprint) return false;
   const label = describeOrganismChange(entries[cursor].fingerprint, memo.fingerprint);
+  const discarded = entries.slice(cursor + 1);
+  for (const entry of discarded) {
+    if (entry?.id) sculptMemory.delete(entry.id);
+  }
   entries = entries.slice(0, cursor + 1);
   entries.push(snapshotEntry(label, memo));
   cursor = entries.length - 1;
@@ -375,12 +400,14 @@ export async function runWithoutOrganismHistory(fn) {
 
 function scheduleApply() {
   const token = ++applyToken;
-  const state = entries[cursor]?.state;
+  const entry = entries[cursor];
+  const state = entry?.state;
   if (!state || !applyHook) {
     settledToken = token;
     return Promise.resolve(false);
   }
   const copy = JSON.parse(JSON.stringify(state));
+  const sculptSnapshot = entry?.id ? sculptMemory.get(entry.id) ?? null : null;
   if (timer) {
     clearTimeout(timer);
     timer = 0;
@@ -389,7 +416,7 @@ function scheduleApply() {
     if (token !== applyToken) return false;
     suppressDepth += 1;
     try {
-      await applyHook(copy);
+      await applyHook(copy, { sculptSnapshot });
       return true;
     } catch (err) {
       console.error("[history] restore failed", err);

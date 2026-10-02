@@ -158,7 +158,7 @@ const TEXTURE_PARAMS = [
 export const MIDI_SECTIONS = ["shape", "noise", "texture"];
 
 export const MIDI_SECTION_LABELS = {
-  shape: "shape",
+  shape: "primitive",
   noise: "noise deformation",
   texture: "texture",
 };
