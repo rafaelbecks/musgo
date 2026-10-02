@@ -341,6 +341,7 @@ export function createUnderwaterSystem({ sceneSystem, morphSystem }) {
     }
     if (!enabled) return;
     rebuildEnvelope(true);
+    attachToMorph();
     applyWaterUniforms();
     placeCausticLight(getMeshBounds());
     syncMorphCaustics();

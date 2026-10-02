@@ -206,14 +206,21 @@ export function createToolsPanel({
       }
     },
     refreshPane: () => pane.refresh(),
-    onOrganismLoaded: async (state, { resetMissingAssets = false } = {}) => {
+    onOrganismLoaded: async (
+      state,
+      { resetMissingAssets = false, afterMorph = false } = {}
+    ) => {
+      // Final pass once morph geometry (+ sculpt) is ready.
+      if (afterMorph) {
+        underwaterSystem?.applyParams();
+        return;
+      }
+
       morphSystem.reconcileModelTextureAndWireframe();
       morphUi?.refreshModelTexture?.();
       // Rebuild so the loaded env appears even if outside the active category filter
       rebuildEnvBinding();
       sceneSystem.renderer.toneMappingExposure = params.exposure;
-      sceneSystem.light.intensity = params.lightIntensity;
-      sceneSystem.ambient.intensity = params.ambient;
       sceneSystem.scene.backgroundBlurriness = params.bgBlur;
       sceneSystem.controls.autoRotate = params.autoRotate;
       sceneSystem.controls.autoRotateSpeed = params.rotateSpeed;
@@ -249,7 +256,11 @@ export function createToolsPanel({
       } else {
         await onEnvironmentChange?.();
       }
-      underwaterSystem?.applyParams();
+
+      // HDR load zeros studio lights — re-apply saved values afterward.
+      sceneSystem.light.intensity = params.lightIntensity;
+      sceneSystem.ambient.intensity = params.ambient;
+
       modulationUi.refresh();
       pane.refresh();
     },

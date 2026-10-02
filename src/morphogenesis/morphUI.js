@@ -1017,7 +1017,10 @@ export async function setupMorphUI(
     onChange
   );
 
-  async function refreshOrganismControls(state, { resetMissingAssets = false } = {}) {
+  async function refreshOrganismControls(
+    state,
+    { resetMissingAssets = false, sculptSnapshot = null } = {}
+  ) {
     if (state?.modelAsset) {
       try {
         const { modelFile } = await morphSystem.loadModelAssetFromOrganism(
@@ -1055,15 +1058,20 @@ export async function setupMorphUI(
     syncRotationBinding();
     refreshPane?.();
     await applyOrganismMidi(state);
-    await onOrganismLoaded?.(state ?? null, { resetMissingAssets: resetMissingAssets || !state });
+    await onOrganismLoaded?.(state ?? null, {
+      resetMissingAssets: resetMissingAssets || !state,
+    });
     await onChange?.();
-    // Geometry is ready — reapply embedded sculpt cage if present.
-    if (state?.sculpt) {
+    // Sculpt changes bounds — apply before underwater/padding refresh.
+    if (sculptSnapshot) {
+      morphSystem.applySculptSnapshot?.(sculptSnapshot);
+    } else if (state?.sculpt) {
       const ok = morphSystem.applySculptFromOrganism?.(state.sculpt);
       if (!ok) {
         console.warn("[organism] sculpt cage could not be restored (vertex count mismatch?)");
       }
     }
+    await onOrganismLoaded?.(state ?? null, { afterMorph: true });
   }
 
   async function applyLoadedOrganism({ state, file, fileHandle = null }) {
@@ -1110,10 +1118,7 @@ export async function setupMorphUI(
 
   setOrganismHistoryApply(async (state, { sculptSnapshot } = {}) => {
     applyOrganismState(state);
-    await refreshOrganismControls(state);
-    if (sculptSnapshot) {
-      morphSystem.applySculptSnapshot?.(sculptSnapshot);
-    }
+    await refreshOrganismControls(state, { sculptSnapshot });
     syncOrganismDirty();
     realignOrganismHistoryCursor();
   });
