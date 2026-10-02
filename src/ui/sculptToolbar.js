@@ -1,46 +1,96 @@
 import * as THREE from "three";
-import { applySculptStroke } from "../morphogenesis/sculptEngine.js";
+import {
+  applySculptStroke,
+  toolUsesNegative,
+  toolUsesStrength,
+} from "../morphogenesis/sculptEngine.js";
 import { commitOrganismHistoryNow } from "../morphogenesis/organismHistory.js";
 import { syncOrganismDirty } from "../morphogenesis/organismState.js";
 
+const SCULPT_CURSOR = 'url("./assets/cursor-sculpt.svg") 12 3, crosshair';
+const DEFAULT_CURSOR = 'url("./assets/cursor.svg") 4 4, auto';
+
+/**
+ * Tools aligned with three.js webgl_sculpt / Sculptor
+ * (https://threejs.org/examples/webgl_sculpt.html).
+ * Icons: Blender sculpt brushicons (sphere previews) — see
+ * assets/sculpt-icons/ATTRIBUTION.md
+ */
 const TOOLS = [
   {
     id: "select",
     label: "Select",
-    icon: null,
-    cursor: null,
+    iconSrc: "./assets/cursor.svg",
     sculpt: false,
+    color: 0x7eb8da,
   },
   {
-    id: "add",
-    label: "Add",
-    icon: "add-circle-outline",
-    cursor: 'url("./assets/cursor-sculpt-add.svg") 12 12, crosshair',
+    id: "clay",
+    label: "Clay",
+    iconSrc: "./assets/sculpt-icons/clay.png",
+    sculpt: true,
+    color: 0xc4a882,
+  },
+  {
+    id: "brush",
+    label: "Brush",
+    iconSrc: "./assets/sculpt-icons/brush.png",
     sculpt: true,
     color: 0x4a90e2,
   },
   {
-    id: "subtract",
-    label: "Subtract",
-    icon: "remove-circle-outline",
-    cursor: 'url("./assets/cursor-sculpt-subtract.svg") 12 12, crosshair',
+    id: "inflate",
+    label: "Inflate",
+    iconSrc: "./assets/sculpt-icons/inflate.png",
+    sculpt: true,
+    color: 0x7eb8da,
+  },
+  {
+    id: "smooth",
+    label: "Smooth",
+    iconSrc: "./assets/sculpt-icons/smooth.png",
+    sculpt: true,
+    color: 0xa8c878,
+  },
+  {
+    id: "flatten",
+    label: "Flatten",
+    iconSrc: "./assets/sculpt-icons/flatten.png",
+    sculpt: true,
+    color: 0x9eb5d4,
+  },
+  {
+    id: "pinch",
+    label: "Pinch",
+    iconSrc: "./assets/sculpt-icons/pinch.png",
+    sculpt: true,
+    color: 0xd4a0c8,
+  },
+  {
+    id: "crease",
+    label: "Crease",
+    iconSrc: "./assets/sculpt-icons/crease.png",
     sculpt: true,
     color: 0xe24a4a,
   },
   {
-    id: "push",
-    label: "Push",
-    icon: "expand-outline",
-    cursor: 'url("./assets/cursor-sculpt-push.svg") 12 12, crosshair',
+    id: "drag",
+    label: "Drag",
+    iconSrc: "./assets/sculpt-icons/drag.png",
     sculpt: true,
     color: 0xe2a44a,
   },
+  {
+    id: "scale",
+    label: "Scale",
+    iconSrc: "./assets/sculpt-icons/scale.png",
+    sculpt: true,
+    color: 0xe8b86d,
+  },
 ];
 
-const DEFAULT_CURSOR = 'url("./assets/cursor.svg") 4 4, auto';
-
 /**
- * Floating left sculpt toolbar + mesh brush interaction.
+ * Floating bottom sculpt toolbar + mesh brush interaction.
  */
 export function createSculptToolbar({
   mount,
@@ -53,15 +103,18 @@ export function createSculptToolbar({
 }) {
   const root = document.createElement("div");
   root.className = "sculpt-toolbar";
+  root.hidden = true;
   root.setAttribute("role", "toolbar");
   root.setAttribute("aria-label", "Sculpt tools");
+  root.setAttribute("aria-hidden", "true");
   mount.appendChild(root);
 
   const state = {
-    visible: true,
+    visible: false,
     tool: "select",
     brushSize: 0.45,
     brushStrength: 0.55,
+    detail: 0.75,
     symmetry: { x: false, y: false, z: false },
   };
 
@@ -69,6 +122,7 @@ export function createSculptToolbar({
   let strokeModified = false;
   let invertStroke = false;
   let hasPrevHit = false;
+  let lastPointerX = 0;
   let raf = 0;
   let pendingPointer = null;
 
@@ -121,8 +175,8 @@ export function createSculptToolbar({
   }
 
   function applyCursor() {
-    const def = currentToolDef();
-    document.documentElement.style.setProperty("--cursor", def.cursor || DEFAULT_CURSOR);
+    const value = isSculpting() ? SCULPT_CURSOR : DEFAULT_CURSOR;
+    document.documentElement.style.setProperty("--cursor", value);
   }
 
   function syncOrbitForTool() {
@@ -194,25 +248,32 @@ export function createSculptToolbar({
     clickLocal.copy(localHit);
     const brushLocal = localBrushRadius(mesh);
     const previousPoint =
-      hasPrevHit && state.tool === "push" ? prevLocalCopy.copy(prevLocalHit) : null;
+      hasPrevHit && (state.tool === "drag" || state.tool === "scale")
+        ? prevLocalCopy.copy(prevLocalHit)
+        : null;
+    const scaleDelta = hasPrevHit && state.tool === "scale" ? clientX - lastPointerX : 0;
 
-    const modified = morphSystem.sculptBase(({ basePositions, normals }) =>
+    const modified = morphSystem.sculptBase(({ basePositions, normals, geometry }) =>
       applySculptStroke({
         basePositions,
         normals,
+        geometry,
         clickPoint: clickLocal,
         tool: state.tool,
         brushSize: brushLocal,
         brushStrength: state.brushStrength,
+        detail: state.detail,
         symmetryAxes: state.symmetry,
         previousPoint,
-        invert: invertStroke,
+        scaleDelta,
+        invert: invertStroke && toolUsesNegative(state.tool),
       })
     );
 
     if (modified) strokeModified = true;
     prevLocalHit.copy(localHit);
     hasPrevHit = true;
+    lastPointerX = clientX;
     return hit;
   }
 
@@ -241,9 +302,35 @@ export function createSculptToolbar({
     }
   }
 
+  const launcher = document.createElement("button");
+  launcher.type = "button";
+  launcher.className = "sculpt-toolbar__launcher";
+  launcher.setAttribute("aria-label", "Open sculpt toolbar");
+  launcher.innerHTML = `<ion-icon name="brush-outline" aria-hidden="true"></ion-icon>`;
+  launcher.addEventListener("click", () => setVisible(true));
+  mount.appendChild(launcher);
+
   const toolsRow = document.createElement("div");
   toolsRow.className = "sculpt-toolbar__tools";
   root.appendChild(toolsRow);
+
+  const tooltip = document.createElement("div");
+  tooltip.className = "sculpt-toolbar__tooltip";
+  tooltip.hidden = true;
+  mount.appendChild(tooltip);
+
+  function showTooltip(btn, label) {
+    tooltip.textContent = label;
+    tooltip.hidden = false;
+    const rect = btn.getBoundingClientRect();
+    const mountRect = mount.getBoundingClientRect();
+    tooltip.style.left = `${rect.left - mountRect.left + rect.width / 2}px`;
+    tooltip.style.top = `${rect.top - mountRect.top - 8}px`;
+  }
+
+  function hideTooltip() {
+    tooltip.hidden = true;
+  }
 
   const toolButtons = new Map();
 
@@ -252,18 +339,42 @@ export function createSculptToolbar({
     btn.type = "button";
     btn.className = "sculpt-toolbar__btn";
     btn.dataset.tool = tool.id;
-    btn.dataset.tooltip = tool.label;
     btn.setAttribute("aria-label", tool.label);
     btn.setAttribute("aria-pressed", tool.id === state.tool ? "true" : "false");
-    if (tool.id === "select") {
-      btn.innerHTML = `<img class="sculpt-toolbar__cursor-icon" src="./assets/cursor.svg" alt="" aria-hidden="true" />`;
-    } else {
-      btn.innerHTML = `<ion-icon name="${tool.icon}" aria-hidden="true"></ion-icon>`;
-    }
-    btn.addEventListener("click", () => setTool(tool.id));
+    btn.innerHTML = `<img class="sculpt-toolbar__tool-icon" src="${tool.iconSrc}" alt="" aria-hidden="true" />`;
+    btn.addEventListener("click", () => {
+      hideTooltip();
+      setTool(tool.id);
+    });
+    btn.addEventListener("mouseenter", () => showTooltip(btn, tool.label));
+    btn.addEventListener("mouseleave", hideTooltip);
+    btn.addEventListener("focus", () => showTooltip(btn, tool.label));
+    btn.addEventListener("blur", hideTooltip);
     toolsRow.appendChild(btn);
     toolButtons.set(tool.id, btn);
   }
+
+  const toolsSep = document.createElement("span");
+  toolsSep.className = "sculpt-toolbar__sep";
+  toolsSep.setAttribute("aria-hidden", "true");
+  toolsRow.appendChild(toolsSep);
+
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = "sculpt-toolbar__btn sculpt-toolbar__close";
+  closeBtn.setAttribute("aria-label", "Close sculpt toolbar");
+  closeBtn.innerHTML = `<ion-icon name="close-outline" aria-hidden="true"></ion-icon>`;
+  closeBtn.addEventListener("click", () => {
+    hideTooltip();
+    setVisible(false);
+  });
+  closeBtn.addEventListener("mouseenter", () => showTooltip(closeBtn, "Close"));
+  closeBtn.addEventListener("mouseleave", hideTooltip);
+  closeBtn.addEventListener("focus", () => showTooltip(closeBtn, "Close"));
+  closeBtn.addEventListener("blur", hideTooltip);
+  toolsRow.appendChild(closeBtn);
+
+  toolsRow.addEventListener("scroll", hideTooltip, { passive: true });
 
   const controlsPanel = document.createElement("div");
   controlsPanel.className = "sculpt-toolbar__controls";
@@ -290,7 +401,10 @@ export function createSculptToolbar({
       onChange(Number(input.value));
       refresh();
     });
-    return { wrap, input, refresh };
+    return { wrap, input, refresh, setEnabled(on) {
+      input.disabled = !on;
+      wrap.classList.toggle("is-disabled", !on);
+    } };
   }
 
   const sizeSlider = makeSlider({
@@ -322,6 +436,25 @@ export function createSculptToolbar({
   });
   controlsPanel.appendChild(strengthSlider.wrap);
 
+  const detailSlider = makeSlider({
+    label: "Detail",
+    icon: "apps-outline",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    value: state.detail,
+    format: (v) => v.toFixed(2),
+    onChange: (v) => {
+      state.detail = v;
+    },
+  });
+  controlsPanel.appendChild(detailSlider.wrap);
+
+  const hint = document.createElement("p");
+  hint.className = "sculpt-toolbar__hint";
+  hint.textContent = "Shift = negative";
+  controlsPanel.appendChild(hint);
+
   const symWrap = document.createElement("div");
   symWrap.className = "sculpt-toolbar__symmetry";
   symWrap.innerHTML = `<span class="sculpt-toolbar__sym-label"><ion-icon name="git-compare-outline" aria-hidden="true"></ion-icon> Symmetry</span>`;
@@ -345,8 +478,11 @@ export function createSculptToolbar({
   symWrap.appendChild(symBtns);
   controlsPanel.appendChild(symWrap);
 
-  function syncControlsVisibility() {
-    controlsPanel.hidden = !isSculpting();
+  function syncControlStates() {
+    const sculpting = isSculpting();
+    controlsPanel.hidden = !sculpting;
+    strengthSlider.setEnabled(sculpting && toolUsesStrength(state.tool));
+    hint.hidden = !sculpting || !toolUsesNegative(state.tool);
   }
 
   function setTool(id) {
@@ -359,7 +495,7 @@ export function createSculptToolbar({
     }
     applyCursor();
     syncOrbitForTool();
-    syncControlsVisibility();
+    syncControlStates();
     if (!isSculpting()) setBrushVisible(false);
     updateBrushGeometry();
   }
@@ -368,6 +504,9 @@ export function createSculptToolbar({
     state.visible = Boolean(next);
     root.hidden = !state.visible;
     root.setAttribute("aria-hidden", state.visible ? "false" : "true");
+    launcher.hidden = state.visible;
+    launcher.setAttribute("aria-hidden", state.visible ? "true" : "false");
+    hideTooltip();
     if (!state.visible) {
       endStroke();
       setBrushVisible(false);
@@ -387,6 +526,7 @@ export function createSculptToolbar({
     strokeModified = false;
     hasPrevHit = false;
     invertStroke = ev.shiftKey;
+    lastPointerX = ev.clientX;
     paintHit(ev.clientX, ev.clientY, { deform: true });
     ev.preventDefault();
   }
@@ -416,6 +556,10 @@ export function createSculptToolbar({
         );
         strengthSlider.input.value = String(state.brushStrength);
         strengthSlider.refresh();
+      } else if (ev.altKey) {
+        state.detail = THREE.MathUtils.clamp(state.detail + dir * 0.05, 0, 1);
+        detailSlider.input.value = String(state.detail);
+        detailSlider.refresh();
       } else {
         state.brushSize = THREE.MathUtils.clamp(state.brushSize + dir * 0.03, 0.05, 1.2);
         sizeSlider.input.value = String(state.brushSize);
@@ -443,7 +587,7 @@ export function createSculptToolbar({
   window.addEventListener("keydown", onKeyDown);
 
   setTool("select");
-  setVisible(true);
+  setVisible(false);
   updateBrushGeometry();
 
   return {
@@ -456,6 +600,7 @@ export function createSculptToolbar({
     setTool,
     destroy() {
       endStroke();
+      launcher.remove();
       if (raf) cancelAnimationFrame(raf);
       domElement.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("pointermove", onPointerMove);
@@ -468,6 +613,8 @@ export function createSculptToolbar({
       brushRing.material.dispose();
       brushDot.geometry.dispose();
       brushDot.material.dispose();
+      hideTooltip();
+      tooltip.remove();
       root.remove();
       document.documentElement.style.setProperty("--cursor", DEFAULT_CURSOR);
       if (controls) controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;

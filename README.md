@@ -25,7 +25,23 @@ Open the app (or press **space**) to enter the editor — or drop a `.organism` 
 - **DLA (moss / coral)** — diffusion-limited aggregation into branched clusters
 - **Imported model** — GLB · OBJ · USDZ · STL (can embed in `.organism`)
 
-Sculpt tools (add / subtract / push, brush size & strength, symmetry) are adapted from [marmelab/sculpt-3D](https://github.com/marmelab/sculpt-3D).
+## Sculpt
+
+Open the brush button (bottom-right of the viewer) for a toolbar of mesh brushes. Tools follow the [three.js sculpt example](https://threejs.org/examples/webgl_sculpt.html) / Sculptor brush model (MIT), with size, strength, detail, and axis symmetry. Toolbar icons are Blender sculpt brushicons (see [`assets/sculpt-icons/ATTRIBUTION.md`](assets/sculpt-icons/ATTRIBUTION.md)).
+
+| Tool | Role |
+|---|---|
+| Select | Orbit / pick without deforming |
+| Clay | Build toward a plane offset along the surface normal |
+| Brush | Soft draw along the normal |
+| Inflate | Expand or shrink along normals (Shift = negative) |
+| Smooth | Relax toward neighbors |
+| Flatten | Pull toward the average brush plane |
+| Pinch | Pull vertices toward the brush center |
+| Crease | Sharper pinch / crease |
+| Drag | Move surface with the pointer |
+| Scale | Scale the brushed region |
+
 
 ## Desktop (WIP)
 
@@ -48,7 +64,8 @@ Open [http://localhost:9990](http://localhost:9990)
 - [Tweakpane](https://tweakpane.github.io/docs/) — parameter UI
 - [Web MIDI API](https://developer.mozilla.org/en-US/docs/Web/API/Web_MIDI_API) — live control
 - File System Access / File Handling — `.organism` load & save (PWA)
-- [sculpt-3D](https://github.com/marmelab/sculpt-3D) — sculpt brush model (MIT)
+- [three.js Sculptor](https://threejs.org/examples/webgl_sculpt.html) / [sculpt-3D](https://github.com/marmelab/sculpt-3D) — sculpt brush models (MIT)
+- Blender sculpt brushicons — toolbar previews (CC0; see [`assets/sculpt-icons/ATTRIBUTION.md`](assets/sculpt-icons/ATTRIBUTION.md))
 
 ## License
 
