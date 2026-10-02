@@ -5,6 +5,39 @@ import { EXRLoader } from "three/addons/loaders/EXRLoader.js";
 import { params } from "./config.js";
 import { createPostProcessing } from "./scene/postProcessing.js";
 import { createVrSystem } from "./scene/vr.js";
+import { imageFileFormat } from "./ui/imageFilePicker.js";
+
+function arrayBufferToBase64(buffer) {
+  const bytes =
+    buffer instanceof ArrayBuffer
+      ? new Uint8Array(buffer)
+      : new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+function base64ToArrayBuffer(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+function mimeFromImageFormat(format, fileName = "") {
+  if (format === "hdr") return "image/vnd.radiance";
+  if (format === "exr") return "image/x-exr";
+  const name = String(fileName).toLowerCase();
+  if (name.endsWith(".png")) return "image/png";
+  if (name.endsWith(".webp")) return "image/webp";
+  if (name.endsWith(".gif")) return "image/gif";
+  if (name.endsWith(".bmp")) return "image/bmp";
+  if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
+  return "application/octet-stream";
+}
 
 export function createSceneSystem({ mount, loading, getFocusMesh } = {}) {
   const container = mount ?? document.body;
@@ -93,6 +126,8 @@ export function createSceneSystem({ mount, loading, getFocusMesh } = {}) {
   let currentEnvMap = null;
   let currentEnvPath = null;
   let customEnvObjectUrl = null;
+  /** @type {{ format: string, fileName: string, mime: string, data: ArrayBuffer } | null} */
+  let customEnvSource = null;
   let envLoadId = 0;
 
   function disposeCustomEnvUrl() {
@@ -100,6 +135,10 @@ export function createSceneSystem({ mount, loading, getFocusMesh } = {}) {
       URL.revokeObjectURL(customEnvObjectUrl);
       customEnvObjectUrl = null;
     }
+  }
+
+  function clearCustomEnvSource() {
+    customEnvSource = null;
   }
 
   function applyCustomEnvTransform() {
@@ -144,6 +183,7 @@ export function createSceneSystem({ mount, loading, getFocusMesh } = {}) {
     }
 
     disposeCustomEnvUrl();
+    clearCustomEnvSource();
     const id = ++envLoadId;
     const resolvedFormat =
       format ?? (String(path).endsWith(".exr") ? "exr" : "hdr");
@@ -177,23 +217,23 @@ export function createSceneSystem({ mount, loading, getFocusMesh } = {}) {
     });
   }
 
-  function loadEnvironmentFromFile(file, { silent = false } = {}) {
+  async function loadEnvironmentFromFile(file, { silent = false } = {}) {
     if (!file) {
       clearEnvironment();
-      return Promise.resolve();
+      return;
     }
 
     disposeCustomEnvUrl();
-    const objectUrl = URL.createObjectURL(file);
+    const data = await file.arrayBuffer();
+    const format = imageFileFormat(file);
+    const fileName = file.name || "image";
+    const mime = file.type || mimeFromImageFormat(format, fileName);
+    customEnvSource = { format, fileName, mime, data };
+
+    const blob = new Blob([data], { type: mime || "application/octet-stream" });
+    const objectUrl = URL.createObjectURL(blob);
     customEnvObjectUrl = objectUrl;
     currentEnvPath = null;
-
-    const name = String(file.name ?? "").toLowerCase();
-    const format = name.endsWith(".exr")
-      ? "exr"
-      : name.endsWith(".hdr")
-        ? "hdr"
-        : "image";
 
     const id = ++envLoadId;
 
@@ -217,6 +257,7 @@ export function createSceneSystem({ mount, loading, getFocusMesh } = {}) {
       const onError = (err) => {
         if (id === envLoadId) {
           disposeCustomEnvUrl();
+          clearCustomEnvSource();
           if (!silent) loading?.end("environment");
           console.error(err);
           reject(err);
@@ -231,6 +272,41 @@ export function createSceneSystem({ mount, loading, getFocusMesh } = {}) {
         textureLoader.load(objectUrl, onLoaded, undefined, onError);
       }
     });
+  }
+
+  /**
+   * Embeddable payload for .organism save (imported env / HDR images).
+   * @returns {{ format: string, fileName: string, mime: string, encoding: string, data: string } | null}
+   */
+  function getEnvAssetForSave() {
+    if (!params.customEnvEnabled || !customEnvSource?.data) return null;
+    return {
+      format: customEnvSource.format,
+      fileName: customEnvSource.fileName,
+      mime: customEnvSource.mime,
+      encoding: "base64",
+      data: arrayBufferToBase64(customEnvSource.data),
+    };
+  }
+
+  /**
+   * Restore an embedded env image from a .organism `envAsset` block.
+   * @returns {Promise<File>}
+   */
+  async function loadEnvAssetFromOrganism(envAsset) {
+    if (!envAsset?.data) {
+      throw new Error("Organism envAsset is missing data.");
+    }
+    const format = envAsset.format || "image";
+    const fileName = envAsset.fileName || "image";
+    const mime = envAsset.mime || mimeFromImageFormat(format, fileName);
+    const data =
+      envAsset.encoding === "base64"
+        ? base64ToArrayBuffer(envAsset.data)
+        : envAsset.data;
+    const file = new File([data], fileName, { type: mime });
+    await loadEnvironmentFromFile(file);
+    return file;
   }
 
   function refreshCustomEnvironment() {
@@ -251,6 +327,7 @@ export function createSceneSystem({ mount, loading, getFocusMesh } = {}) {
     ambient.intensity = params.ambient;
     currentEnvPath = null;
     disposeCustomEnvUrl();
+    clearCustomEnvSource();
     if (scene.environmentRotation) scene.environmentRotation.set(0, 0, 0);
     if (scene.backgroundRotation) scene.backgroundRotation.set(0, 0, 0);
     scene.backgroundIntensity = 1;
@@ -307,6 +384,8 @@ export function createSceneSystem({ mount, loading, getFocusMesh } = {}) {
     },
     loadEnvironment,
     loadEnvironmentFromFile,
+    loadEnvAssetFromOrganism,
+    getEnvAssetForSave,
     refreshCustomEnvironment,
     clearEnvironment,
     hasCustomEnvironment: () => !!customEnvObjectUrl,

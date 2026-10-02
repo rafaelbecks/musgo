@@ -19,7 +19,11 @@ import {
   MIDI_SECTION_LABELS,
   getMaxShapeParamCount,
 } from "../midi/morphMidiParams.js";
-import { setOrganismMidiHooks, syncOrganismDirty } from "../morphogenesis/organismState.js";
+import {
+  setOrganismMidiHooks,
+  setOrganismEnvAssetHooks,
+  syncOrganismDirty,
+} from "../morphogenesis/organismState.js";
 import { pickImageFile } from "./imageFilePicker.js";
 
 const MIDI_MAPPING_PRESETS = {
@@ -202,7 +206,7 @@ export function createToolsPanel({
       }
     },
     refreshPane: () => pane.refresh(),
-    onOrganismLoaded: async () => {
+    onOrganismLoaded: async (state, { resetMissingAssets = false } = {}) => {
       morphSystem.reconcileModelTextureAndWireframe();
       morphUi?.refreshModelTexture?.();
       // Rebuild so the loaded env appears even if outside the active category filter
@@ -215,9 +219,36 @@ export function createToolsPanel({
       sceneSystem.controls.autoRotateSpeed = params.rotateSpeed;
       sceneSystem.rebuildGrid();
       sceneSystem.rebuildAxes();
+
+      let envAlreadyApplied = false;
+      if (state?.envAsset) {
+        try {
+          customEnvFile = await sceneSystem.loadEnvAssetFromOrganism(state.envAsset);
+          params.customEnvEnabled = true;
+          params.customEnvFileName =
+            state.envAsset.fileName || customEnvFile?.name || "image";
+          customEnvFileBinding?.refresh();
+          envAlreadyApplied = true;
+        } catch (err) {
+          console.error("[organism] failed to load embedded environment", err);
+          customEnvFile = null;
+          window.alert(
+            err?.message || "Failed to load embedded environment from organism."
+          );
+        }
+      } else if (resetMissingAssets) {
+        customEnvFile = null;
+      } else if (!params.customEnvEnabled) {
+        customEnvFile = null;
+      }
+
       syncCustomEnvFolder();
       syncBloomFolder();
-      await onEnvironmentChange?.();
+      if (envAlreadyApplied) {
+        sceneSystem.scene.backgroundBlurriness = params.bgBlur;
+      } else {
+        await onEnvironmentChange?.();
+      }
       underwaterSystem?.applyParams();
       modulationUi.refresh();
       pane.refresh();
@@ -1273,6 +1304,9 @@ export function createToolsPanel({
     serialize: serializeMidiForOrganism,
     apply: applyMidiFromOrganism,
     reset: resetMidiToDefaults,
+  });
+  setOrganismEnvAssetHooks({
+    getForSave: () => sceneSystem.getEnvAssetForSave?.() ?? null,
   });
 
   async function applyEnvironment() {

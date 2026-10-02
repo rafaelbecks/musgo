@@ -25,6 +25,7 @@ import {
   confirmDiscardUnsavedChanges,
   markOrganismBaseline,
   setOrganismModelAssetHooks,
+  setOrganismTextureAssetHooks,
   applyOrganismState,
 } from "./organismState.js";
 import {
@@ -116,6 +117,9 @@ export async function setupMorphUI(
   installOrganismSaveShortcut();
   setOrganismModelAssetHooks({
     getForSave: () => morphSystem.getModelAssetForSave?.() ?? null,
+  });
+  setOrganismTextureAssetHooks({
+    getForSave: () => morphSystem.getTextureAssetForSave?.() ?? null,
   });
   const models = await loadModelCatalog();
   const importedModels = [];
@@ -1013,7 +1017,7 @@ export async function setupMorphUI(
     onChange
   );
 
-  async function refreshOrganismControls(state) {
+  async function refreshOrganismControls(state, { resetMissingAssets = false } = {}) {
     if (state?.modelAsset) {
       try {
         const { modelFile } = await morphSystem.loadModelAssetFromOrganism(
@@ -1030,6 +1034,19 @@ export async function setupMorphUI(
       }
     }
 
+    if (state?.textureAsset) {
+      try {
+        await morphSystem.loadTextureAssetFromOrganism(state.textureAsset);
+      } catch (err) {
+        console.error("[organism] failed to load embedded texture", err);
+        window.alert(err?.message || "Failed to load embedded texture from organism.");
+      }
+    } else if (resetMissingAssets || !state) {
+      // New / opened file without an image — drop previous session bytes.
+      // Undo/redo keeps the in-memory texture (mementos omit the blob), same as models.
+      morphSystem.clearCustomTexture();
+    }
+
     buildModelControls();
     syncShapeFolders();
     syncGlassFolder();
@@ -1038,7 +1055,7 @@ export async function setupMorphUI(
     syncRotationBinding();
     refreshPane?.();
     await applyOrganismMidi(state);
-    await onOrganismLoaded?.(state ?? null);
+    await onOrganismLoaded?.(state ?? null, { resetMissingAssets: resetMissingAssets || !state });
     await onChange?.();
     // Geometry is ready — reapply embedded sculpt cage if present.
     if (state?.sculpt) {
@@ -1054,7 +1071,7 @@ export async function setupMorphUI(
     await runWithoutOrganismHistory(async () => {
       adoptLoadedOrganism({ state, file, fileHandle });
       try {
-        await refreshOrganismControls(state);
+        await refreshOrganismControls(state, { resetMissingAssets: true });
       } finally {
         // Re-baseline after async env/pane side-effects so we don't stay dirty
         markOrganismClean();
@@ -1076,7 +1093,7 @@ export async function setupMorphUI(
     await runWithoutOrganismHistory(async () => {
       await createNewOrganism();
       try {
-        await refreshOrganismControls(null);
+        await refreshOrganismControls(null, { resetMissingAssets: true });
       } finally {
         markOrganismBaseline();
         anchorOrganismHistory("Nuevo", { replace: true });

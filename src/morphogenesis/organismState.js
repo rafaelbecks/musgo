@@ -72,6 +72,12 @@ let midiHooks = null;
 /** @type {{ getForSave: () => object | null } | null} */
 let modelAssetHooks = null;
 
+/** @type {{ getForSave: () => object | null } | null} */
+let textureAssetHooks = null;
+
+/** @type {{ getForSave: () => object | null } | null} */
+let envAssetHooks = null;
+
 /** @type {{
  *   getRevision: () => number,
  *   capture: () => { revision: number, positions: Float32Array } | null,
@@ -100,6 +106,16 @@ export function setOrganismMidiHooks(hooks) {
 /** Register embedded-model serialize hook (from morph system). */
 export function setOrganismModelAssetHooks(hooks) {
   modelAssetHooks = hooks;
+}
+
+/** Register embedded custom-texture serialize hook (from morph system). */
+export function setOrganismTextureAssetHooks(hooks) {
+  textureAssetHooks = hooks;
+}
+
+/** Register embedded custom-environment serialize hook (from scene / tools). */
+export function setOrganismEnvAssetHooks(hooks) {
+  envAssetHooks = hooks;
 }
 
 /** Register sculpt base-cage hooks for undo/redo fingerprints + restore. */
@@ -247,6 +263,8 @@ export function serializeOrganism({
   id = session.id ?? createOrganismId(),
   includeModel = true,
   includeSculpt = true,
+  includeTexture = true,
+  includeEnv = true,
 } = {}) {
   clampMorphParams();
   const state = {
@@ -265,6 +283,14 @@ export function serializeOrganism({
     const modelAsset = modelAssetHooks?.getForSave?.();
     if (modelAsset) state.modelAsset = modelAsset;
   }
+  if (includeTexture) {
+    const textureAsset = textureAssetHooks?.getForSave?.();
+    if (textureAsset) state.textureAsset = textureAsset;
+  }
+  if (includeEnv) {
+    const envAsset = envAssetHooks?.getForSave?.();
+    if (envAsset) state.envAsset = envAsset;
+  }
   if (includeSculpt) {
     const sculpt = sculptHooks?.getForSave?.();
     if (sculpt) state.sculpt = sculpt;
@@ -272,9 +298,14 @@ export function serializeOrganism({
   return state;
 }
 
-/** Plain snapshot used by undo/redo. Omits model blob + sculpt cage (kept in memory). */
+/** Plain snapshot used by undo/redo. Omits binary blobs (kept in memory). */
 export function getOrganismMemento() {
-  const state = serializeOrganism({ includeModel: false, includeSculpt: false });
+  const state = serializeOrganism({
+    includeModel: false,
+    includeSculpt: false,
+    includeTexture: false,
+    includeEnv: false,
+  });
   delete state.createdAt;
   return {
     fingerprint: contentFingerprint(),

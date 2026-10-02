@@ -17,6 +17,7 @@ import {
   computePositionSharedNormals,
 } from "./noiseDeform.js";
 import { modelFileFormat } from "../ui/modelFilePicker.js";
+import { imageFileFormat } from "../ui/imageFilePicker.js";
 
 const EXPORT_PARAM_KEYS = [
   "shape",
@@ -145,6 +146,18 @@ function base64ToArrayBuffer(base64) {
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes.buffer;
+}
+
+function mimeFromImageFormat(format, fileName = "") {
+  if (format === "hdr") return "image/vnd.radiance";
+  if (format === "exr") return "image/x-exr";
+  const name = String(fileName).toLowerCase();
+  if (name.endsWith(".png")) return "image/png";
+  if (name.endsWith(".webp")) return "image/webp";
+  if (name.endsWith(".gif")) return "image/gif";
+  if (name.endsWith(".bmp")) return "image/bmp";
+  if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
+  return "application/octet-stream";
 }
 
 function sanitizeModelBaseName(name) {
@@ -356,6 +369,8 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange,
 
   let customTexture = null;
   let customTextureObjectUrl = null;
+  /** @type {{ format: string, fileName: string, mime: string, data: ArrayBuffer } | null} */
+  let customTextureSource = null;
   const textureLoader = new THREE.TextureLoader();
 
   function disposeCustomTexture() {
@@ -367,6 +382,7 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange,
       URL.revokeObjectURL(customTextureObjectUrl);
       customTextureObjectUrl = null;
     }
+    customTextureSource = null;
     morphParams.customTextureFileName = "";
   }
 
@@ -453,11 +469,19 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange,
     return reconcileModelTextureAndWireframe({ preferTexture: true });
   }
 
-  function loadCustomTexture(file) {
+  async function loadCustomTexture(file) {
+    disposeCustomTexture();
+    const data = await file.arrayBuffer();
+    const format = imageFileFormat(file);
+    const fileName = file.name || "image";
+    const mime = file.type || mimeFromImageFormat(format, fileName);
+    customTextureSource = { format, fileName, mime, data };
+
+    const blob = new Blob([data], { type: mime || "application/octet-stream" });
+    const objectUrl = URL.createObjectURL(blob);
+    customTextureObjectUrl = objectUrl;
+
     return new Promise((resolve, reject) => {
-      disposeCustomTexture();
-      const objectUrl = URL.createObjectURL(file);
-      customTextureObjectUrl = objectUrl;
       textureLoader.load(
         objectUrl,
         (texture) => {
@@ -465,7 +489,7 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange,
           applyCustomTextureSettings(texture);
           customTexture = texture;
           morphParams.customTextureEnabled = true;
-          morphParams.customTextureFileName = file.name || "image";
+          morphParams.customTextureFileName = fileName;
           if (viewerParams.wireframe) {
             viewerParams.wireframe = false;
             onViewerChange?.();
@@ -486,6 +510,40 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange,
     disposeCustomTexture();
     morphParams.customTextureEnabled = false;
     if (mesh) applyMaterialState(mesh.material);
+  }
+
+  /**
+   * Embeddable payload for .organism save (imported image textures).
+   * @returns {{ format: string, fileName: string, mime: string, encoding: string, data: string } | null}
+   */
+  function getTextureAssetForSave() {
+    if (!morphParams.customTextureEnabled || !customTextureSource?.data) return null;
+    return {
+      format: customTextureSource.format,
+      fileName: customTextureSource.fileName,
+      mime: customTextureSource.mime,
+      encoding: "base64",
+      data: arrayBufferToBase64(customTextureSource.data),
+    };
+  }
+
+  /**
+   * Restore an embedded texture from a .organism `textureAsset` block.
+   */
+  async function loadTextureAssetFromOrganism(textureAsset) {
+    if (!textureAsset?.data) {
+      throw new Error("Organism textureAsset is missing data.");
+    }
+    const format = textureAsset.format || "image";
+    const fileName = textureAsset.fileName || "image";
+    const mime =
+      textureAsset.mime || mimeFromImageFormat(format, fileName);
+    const data =
+      textureAsset.encoding === "base64"
+        ? base64ToArrayBuffer(textureAsset.data)
+        : textureAsset.data;
+    const file = new File([data], fileName, { type: mime });
+    await loadCustomTexture(file);
   }
 
   function refreshCustomTexture() {
@@ -1271,6 +1329,8 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange,
     loadModelFromFile,
     loadModelAssetFromOrganism,
     getModelAssetForSave,
+    loadTextureAssetFromOrganism,
+    getTextureAssetForSave,
     clearCustomTexture,
     refreshCustomTexture,
     hasCustomTexture: () => !!customTexture,
