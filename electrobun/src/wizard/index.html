@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=0.8" />
+  <meta name="theme-color" content="#000000" />
+  <title>MUSGO — Paquetes de contenido</title>
+  <link rel="icon" href="/icons/resonant192.png" sizes="192x192" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="./wizard.css" />
+</head>
+<body class="wizard-page">
+
+<div class="help-modal examples-modal wizard-shell is-open" role="dialog" aria-modal="true" aria-labelledby="wizard-title">
+  <div class="help-modal__content examples-modal__content wizard-shell__content">
+    <header class="help-modal__header">
+      <h2 id="wizard-title">Paquetes de contenido</h2>
+      <button type="button" class="help-modal__close" id="btn-skip" title="Omitir" aria-label="Omitir">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+    </header>
+
+    <div class="help-modal__body wizard-shell__body">
+      <p class="wizard-shell__lede">
+        La app funciona <strong>sin</strong> estos paquetes — formas procedurales e iluminación de estudio bastan.
+        Descargá ejemplos, modelos o entornos cuando quieras. Podés omitir e instalar después desde
+        <em>Archivo → Paquetes de contenido…</em>
+      </p>
+
+      <form id="pack-form">
+        <ul id="pack-list" class="examples-modal__list wizard-pack-list" role="list"></ul>
+
+        <div class="loading-card wizard-progress" id="progress-block" hidden>
+          <p class="loading-label" id="progress-label">Preparando…</p>
+          <div class="loading-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress-bar">
+            <div class="loading-bar" id="progress-fill"></div>
+          </div>
+          <p class="wizard-progress__detail" id="progress-detail"></p>
+          <p class="wizard-progress__pct" id="progress-pct">0%</p>
+        </div>
+
+        <p class="wizard-shell__error" id="error" hidden></p>
+
+        <div class="wizard-shell__actions">
+          <button type="button" class="wizard-btn wizard-btn--ghost" id="btn-skip-footer">Omitir</button>
+          <button type="submit" class="wizard-btn wizard-btn--primary" id="btn-download">Descargar seleccionados</button>
+        </div>
+      </form>
+
+      <p class="wizard-shell__footnote">
+        Packs desde
+        <a href="https://github.com/rafaelbecks/musgo/releases/tag/v1" target="_blank" rel="noopener">musgo assets v1</a>
+        · SHA-256 cuando está disponible
+      </p>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="./wizard.js"></script>
+</body>
+</html>

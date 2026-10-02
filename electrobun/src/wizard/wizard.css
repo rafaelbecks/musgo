@@ -1,0 +1,138 @@
+/* Compact standalone wizard page — shares MUSGO modal language */
+
+.wizard-page {
+  margin: 0;
+  min-height: 100%;
+  overflow: auto;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  cursor: var(--cursor);
+}
+
+.wizard-shell {
+  display: flex !important;
+  position: fixed;
+  inset: 0;
+}
+
+.wizard-shell__content {
+  width: min(420px, 100%);
+  max-height: min(72vh, 560px);
+}
+
+.wizard-shell__lede {
+  margin: 0 0 0.9em;
+  font-size: 13px;
+}
+
+.wizard-pack-list {
+  margin-bottom: 12px;
+  grid-template-columns: 1fr !important;
+}
+
+.wizard-pack {
+  position: relative;
+}
+
+.wizard-pack input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.wizard-pack .examples-modal__item {
+  width: 100%;
+}
+
+.wizard-pack.is-selected .examples-modal__item,
+.wizard-pack:has(input:checked) .examples-modal__item {
+  border-color: #84ff00;
+  background: rgba(132, 255, 0, 0.06);
+}
+
+.wizard-pack.is-installed .examples-modal__item {
+  opacity: 0.55;
+  border-color: rgba(255, 255, 255, 0.1);
+  background: transparent;
+}
+
+.wizard-pack.is-installed .examples-modal__item:hover {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: transparent;
+}
+
+.wizard-pack__badge {
+  display: inline-block;
+  margin-left: 6px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #84ff00;
+}
+
+.wizard-pack__badge--ok {
+  color: var(--muted);
+}
+
+.wizard-progress {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  margin: 0 0 12px;
+  box-sizing: border-box;
+  padding: 14px 16px;
+}
+
+.wizard-progress__detail {
+  margin: 8px 0 0;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.wizard-progress__pct {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  margin: 0;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.wizard-shell__error {
+  margin: 0 0 10px;
+  color: #ff6b6b;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+}
+
+.wizard-shell__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.wizard-shell__footnote {
+  margin: 1.1em 0 0;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+
+.wizard-shell__footnote a {
+  color: #84ff00;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.wizard-shell__footnote a:hover {
+  color: #fff;
+}

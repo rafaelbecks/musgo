@@ -33,6 +33,9 @@ import { updateMidiSmoothing } from "./midi/midiCamera.js";
 import { createHelpModal } from "./ui/helpModal.js";
 import { createExamplesModal } from "./ui/examplesModal.js";
 import { createFotogrametriasModal } from "./ui/fotogrametriasModal.js";
+import { createExtraContentNudge } from "./ui/extraContentNudge.js";
+import { getContentPackModal } from "./ui/contentPackModal.js";
+import { refreshContentAvailability } from "./ui/contentAvailability.js";
 import { createAppMenu } from "./ui/appMenu.js";
 import { createHistoryModal } from "./ui/historyModal.js";
 import { createFpsGraph } from "./ui/fpsGraph.js";
@@ -425,6 +428,9 @@ export async function bootApp({
       exportJson: () => morphSystem.exportMorphJson(),
       examples: () => examplesModal.open(),
       fotogrametrias: () => fotogrametriasModal.open(),
+      contentPacks: async () => {
+        await getContentPackModal().open();
+      },
       about: () => helpModal.open(),
       isWireframe: () => params.wireframe,
       isGrid: () => params.showGrid,
@@ -458,6 +464,16 @@ export async function bootApp({
   });
 
   subscribeOrganismHistory(() => appMenu.refresh());
+
+  createExtraContentNudge();
+  refreshContentAvailability().catch(() => {});
+
+  window.addEventListener("musgo:open-content-packs", () => {
+    getContentPackModal().open();
+  });
+  if (new URLSearchParams(location.search).get("openContentPacks") === "1") {
+    queueMicrotask(() => getContentPackModal().open());
+  }
 
   window.addEventListener("keydown", (ev) => {
     const mod = ev.metaKey || ev.ctrlKey;

@@ -68,6 +68,11 @@ export function createAppMenu({
           label: "Fotogrametrías secta…",
           icon: "scan-outline",
         },
+        {
+          id: "contentPacks",
+          label: "Paquetes de contenido…",
+          icon: "cloud-download-outline",
+        },
       ],
     },
     {

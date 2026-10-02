@@ -21,6 +21,12 @@ import {
 } from "../midi/morphMidiParams.js";
 import { setOrganismMidiHooks, syncOrganismDirty } from "../morphogenesis/organismState.js";
 import { pickImageFile } from "./imageFilePicker.js";
+import {
+  isLibraryAvailable,
+  refreshContentAvailability,
+  subscribeContentAvailability,
+} from "./contentAvailability.js";
+import { getContentPackModal } from "./contentPackModal.js";
 
 const MIDI_MAPPING_PRESETS = {
   "Arturia KeyLab Essential 49 mk3":
@@ -184,6 +190,34 @@ export function createToolsPanel({
   let envBinding = null;
   let customEnvFile = null;
   let customEnvFileBinding = null;
+  /** @type {string[] | null} null = unrestricted (web with assets); [] = only none */
+  let availableEnvIds = null;
+  let envDownloadBtn = null;
+
+  function envCatalogIds() {
+    if (!isLibraryAvailable("env")) return [];
+    return null;
+  }
+
+  function syncEnvAvailabilityUi() {
+    availableEnvIds = envCatalogIds();
+    if (
+      availableEnvIds &&
+      params.environment !== "none" &&
+      !availableEnvIds.includes(params.environment)
+    ) {
+      params.environment = "none";
+    }
+    rebuildEnvBinding();
+    if (envDownloadBtn) {
+      try {
+        envDownloadBtn.hidden = isLibraryAvailable("env");
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
   const morphUiReady = setupMorphUI(morphTab, morphSystem, async () => {
     await onRefresh?.();
     morphUi?.refreshModelTexture?.();
@@ -194,9 +228,12 @@ export function createToolsPanel({
         params.wireframe = false;
         morphSystem.applyMaterial();
       }
-      // Only pick a random HDR if nothing is selected yet
-      if (!params.environment || params.environment === "none") {
-        params.environment = pickRandomHdrEnvironment();
+      // Only pick a random HDR if the env pack is available and nothing selected
+      if (
+        isLibraryAvailable("env") &&
+        (!params.environment || params.environment === "none")
+      ) {
+        params.environment = pickRandomHdrEnvironment(null, availableEnvIds);
         envBinding?.refresh();
         onEnvironmentChange?.();
       }
@@ -227,10 +264,18 @@ export function createToolsPanel({
     return api;
   });
   const envFolder = viewTab.addFolder({ title: "Entorno", expanded: true });
-  const onEnvChange = () => {
+  const onEnvChange = async () => {
     params.customEnvEnabled = false;
     customEnvFile = null;
     customEnvFileBinding?.refresh();
+    if (
+      params.environment !== "none" &&
+      availableEnvIds &&
+      !availableEnvIds.includes(params.environment)
+    ) {
+      params.environment = "none";
+      envBinding?.refresh();
+    }
     if (getEnvFormat(params.environment) === "exr") {
       params.bgBlur = 0.15;
       bgBlurBinding.refresh();
@@ -242,7 +287,11 @@ export function createToolsPanel({
     envBinding?.dispose();
     envBinding = envFolder.addBinding(params, "environment", {
       label: "HDR",
-      options: getEnvOptions(params.envCategory, params.environment),
+      options: getEnvOptions(
+        params.envCategory,
+        params.environment,
+        availableEnvIds,
+      ),
       index,
     });
     envBinding.on("change", onEnvChange);
@@ -257,9 +306,26 @@ export function createToolsPanel({
     });
   envBinding = envFolder.addBinding(params, "environment", {
     label: "HDR",
-    options: getEnvOptions(params.envCategory, params.environment),
+    options: getEnvOptions(
+      params.envCategory,
+      params.environment,
+      availableEnvIds,
+    ),
   });
   envBinding.on("change", onEnvChange);
+  envDownloadBtn = envFolder.addButton({ title: "Descargar entornos…" });
+  envDownloadBtn.on("click", async () => {
+    const ok = await getContentPackModal().ensureLibrary("env");
+    if (ok) {
+      syncEnvAvailabilityUi();
+      pane.refresh();
+    }
+  });
+  try {
+    envDownloadBtn.hidden = true;
+  } catch {
+    /* tweakpane versions without hidden */
+  }
   const bgBlurBinding = envFolder
     .addBinding(params, "bgBlur", {
       label: "bg blur",
@@ -621,8 +687,11 @@ export function createToolsPanel({
           morphSystem.applyMaterial();
         }
         // Mirror morph UI glass-enable side effects
-        if (!params.environment || params.environment === "none") {
-          params.environment = pickRandomHdrEnvironment();
+        if (
+          isLibraryAvailable("env") &&
+          (!params.environment || params.environment === "none")
+        ) {
+          params.environment = pickRandomHdrEnvironment(null, availableEnvIds);
           envBinding?.refresh();
           onEnvironmentChange?.();
         }
@@ -1286,14 +1355,30 @@ export function createToolsPanel({
       sceneSystem.clearEnvironment();
       return;
     }
-    await sceneSystem.loadEnvironment(path, {
-      format: getEnvFormat(params.environment),
-    });
-    sceneSystem.scene.backgroundBlurriness = params.bgBlur;
+    try {
+      await sceneSystem.loadEnvironment(path, {
+        format: getEnvFormat(params.environment),
+      });
+      sceneSystem.scene.backgroundBlurriness = params.bgBlur;
+    } catch (err) {
+      console.warn("[env] load failed, falling back to studio lights", err);
+      params.environment = "none";
+      envBinding?.refresh();
+      sceneSystem.clearEnvironment();
+    }
   }
 
   async function setEnvironment(envId) {
     if (!envId) return;
+    if (
+      envId !== "none" &&
+      availableEnvIds &&
+      !availableEnvIds.includes(envId)
+    ) {
+      const ok = await getContentPackModal().ensureLibrary("env");
+      if (!ok || !isLibraryAvailable("env")) return;
+      syncEnvAvailabilityUi();
+    }
     params.customEnvEnabled = false;
     customEnvFile = null;
     customEnvFileBinding?.refresh();
@@ -1305,6 +1390,16 @@ export function createToolsPanel({
     envBinding?.refresh();
     await applyEnvironment();
   }
+
+  const unsubContent = subscribeContentAvailability(() => {
+    syncEnvAvailabilityUi();
+    pane.refresh();
+  });
+  refreshContentAvailability().then(() => {
+    syncEnvAvailabilityUi();
+    pane.refresh();
+  });
+  void unsubContent;
 
   return {
     pane,

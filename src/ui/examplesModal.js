@@ -1,6 +1,8 @@
-/**
- * Examples modal — list + load .organism files from ./examples/
- */
+import {
+  isLibraryAvailable,
+  refreshContentAvailability,
+} from "./contentAvailability.js";
+import { getContentPackModal } from "./contentPackModal.js";
 
 const EXAMPLES_INDEX_URL = "./examples/index.json";
 const EXAMPLES_BASE = "./examples/";
@@ -121,7 +123,18 @@ export function createExamplesModal({
       loaded = true;
     } catch (err) {
       console.error("[examples] failed to load index", err);
-      bodyEl.innerHTML = `<p>Couldn’t load examples list.</p>`;
+      bodyEl.innerHTML = `
+        <p>No hay ejemplos disponibles.</p>
+        <p><button type="button" class="wizard-btn wizard-btn--primary" id="examples-download-cta">Descargar ejemplos…</button></p>
+      `;
+      bodyEl.querySelector("#examples-download-cta")?.addEventListener("click", async () => {
+        hide();
+        const ok = await getContentPackModal().ensureLibrary("examples");
+        if (ok) {
+          loaded = false;
+          show();
+        }
+      });
     }
   }
 
@@ -135,11 +148,29 @@ export function createExamplesModal({
       await onSelectExample?.(file);
     } catch (err) {
       console.error("[examples] failed to open", filename, err);
+      const ok = await getContentPackModal().ensureLibrary("examples");
+      if (ok) {
+        try {
+          const response = await fetch(`${EXAMPLES_BASE}${encodeURIComponent(filename)}`);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const blob = await response.blob();
+          const file = new File([blob], filename, { type: "application/json" });
+          await onSelectExample?.(file);
+          return;
+        } catch (retryErr) {
+          console.error("[examples] retry failed", retryErr);
+        }
+      }
       window.alert(err?.message || `Failed to open ${filename}`);
     }
   }
 
-  function show() {
+  async function show() {
+    await refreshContentAvailability();
+    if (!isLibraryAvailable("examples")) {
+      const ok = await getContentPackModal().ensureLibrary("examples");
+      if (!ok || !isLibraryAvailable("examples")) return;
+    }
     isOpen = true;
     modal.hidden = false;
     modal.classList.add("is-open");

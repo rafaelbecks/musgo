@@ -92,10 +92,19 @@ export const HDR_ENVIRONMENTS = {
   stockholm_god_rays: { label: "Lumen Estocolmo", file: "exr/stockholm_god_rays_env.exr", format: "exr", category: "interior" },
 };
 
-export function getEnvOptions(category = "all", includeId = null) {
+export function getEnvOptions(category = "all", includeId = null, availableIds = null) {
+  const allow =
+    availableIds == null
+      ? null
+      : new Set(
+          Array.isArray(availableIds) ? availableIds : [...availableIds],
+        );
   return Object.fromEntries(
     Object.entries(HDR_ENVIRONMENTS)
       .filter(([id, env]) => {
+        if (allow && id !== "none" && id !== includeId && !allow.has(id)) {
+          return false;
+        }
         if (id === "none" || category === "all" || id === includeId) return true;
         return env.category === category;
       })
@@ -103,15 +112,24 @@ export function getEnvOptions(category = "all", includeId = null) {
   );
 }
 
-export function getHdrEnvironmentIds() {
-  return Object.keys(HDR_ENVIRONMENTS).filter(
-    (id) => id !== "none" && HDR_ENVIRONMENTS[id]?.format !== "exr"
-  );
+export function getHdrEnvironmentIds(availableIds = null) {
+  const allow =
+    availableIds == null
+      ? null
+      : new Set(
+          Array.isArray(availableIds) ? availableIds : [...availableIds],
+        );
+  return Object.keys(HDR_ENVIRONMENTS).filter((id) => {
+    if (id === "none") return false;
+    if (HDR_ENVIRONMENTS[id]?.format === "exr") return false;
+    if (allow && !allow.has(id)) return false;
+    return true;
+  });
 }
 
-export function pickRandomHdrEnvironment(excludeId = null) {
-  const ids = getHdrEnvironmentIds().filter((id) => id !== excludeId);
-  if (!ids.length) return "industrial_sunset";
+export function pickRandomHdrEnvironment(excludeId = null, availableIds = null) {
+  const ids = getHdrEnvironmentIds(availableIds).filter((id) => id !== excludeId);
+  if (!ids.length) return "none";
   return ids[Math.floor(Math.random() * ids.length)];
 }
 

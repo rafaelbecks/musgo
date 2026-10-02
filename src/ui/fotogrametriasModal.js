@@ -2,6 +2,12 @@
  * Fotogrametrías secta modal — list + load GLB / USDZ from ./fotogrametrias-secta/Modelos/
  */
 
+import {
+  isLibraryAvailable,
+  refreshContentAvailability,
+} from "./contentAvailability.js";
+import { getContentPackModal } from "./contentPackModal.js";
+
 const INDEX_URL = "./fotogrametrias-secta/Modelos/index.json";
 const MODELS_BASE = "./fotogrametrias-secta/Modelos/";
 
@@ -96,7 +102,18 @@ export function createFotogrametriasModal({ loading, onSelectModel } = {}) {
       loaded = true;
     } catch (err) {
       console.error("[fotogrametrias] failed to load index", err);
-      bodyEl.innerHTML = `<p>No se pudo cargar la lista de modelos.</p>`;
+      bodyEl.innerHTML = `
+        <p>No hay fotogrametrías disponibles.</p>
+        <p><button type="button" class="wizard-btn wizard-btn--primary" id="foto-download-cta">Descargar fotogrametrías…</button></p>
+      `;
+      bodyEl.querySelector("#foto-download-cta")?.addEventListener("click", async () => {
+        hide();
+        const ok = await getContentPackModal().ensureLibrary("fotogrametrias");
+        if (ok) {
+          loaded = false;
+          show();
+        }
+      });
     }
   }
 
@@ -113,13 +130,33 @@ export function createFotogrametriasModal({ loading, onSelectModel } = {}) {
       await onSelectModel?.(file);
     } catch (err) {
       console.error("[fotogrametrias] failed to open", filename, err);
+      const ok = await getContentPackModal().ensureLibrary("fotogrametrias");
+      if (ok) {
+        try {
+          const response = await fetch(
+            `${MODELS_BASE}${encodeURIComponent(filename)}`
+          );
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const blob = await response.blob();
+          const file = new File([blob], filename, { type: modelMime(filename) });
+          await onSelectModel?.(file);
+          return;
+        } catch (retryErr) {
+          console.error("[fotogrametrias] retry failed", retryErr);
+        }
+      }
       window.alert(err?.message || `No se pudo abrir ${filename}`);
     } finally {
       loading?.end("model");
     }
   }
 
-  function show() {
+  async function show() {
+    await refreshContentAvailability();
+    if (!isLibraryAvailable("fotogrametrias")) {
+      const ok = await getContentPackModal().ensureLibrary("fotogrametrias");
+      if (!ok || !isLibraryAvailable("fotogrametrias")) return;
+    }
     isOpen = true;
     modal.hidden = false;
     modal.classList.add("is-open");
