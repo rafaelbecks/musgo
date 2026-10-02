@@ -75,7 +75,8 @@ let modelAssetHooks = null;
 /** @type {{
  *   getRevision: () => number,
  *   capture: () => { revision: number, positions: Float32Array } | null,
- *   apply: (positions: Float32Array) => boolean,
+ *   getForSave?: () => object | null,
+ *   apply: (snapshot: object | Float32Array) => boolean,
  * } | null} */
 let sculptHooks = null;
 
@@ -245,6 +246,7 @@ function contentFingerprint() {
 export function serializeOrganism({
   id = session.id ?? createOrganismId(),
   includeModel = true,
+  includeSculpt = true,
 } = {}) {
   clampMorphParams();
   const state = {
@@ -263,12 +265,16 @@ export function serializeOrganism({
     const modelAsset = modelAssetHooks?.getForSave?.();
     if (modelAsset) state.modelAsset = modelAsset;
   }
+  if (includeSculpt) {
+    const sculpt = sculptHooks?.getForSave?.();
+    if (sculpt) state.sculpt = sculpt;
+  }
   return state;
 }
 
-/** Plain snapshot used by undo/redo. Omits the embedded model blob. */
+/** Plain snapshot used by undo/redo. Omits model blob + sculpt cage (kept in memory). */
 export function getOrganismMemento() {
-  const state = serializeOrganism({ includeModel: false });
+  const state = serializeOrganism({ includeModel: false, includeSculpt: false });
   delete state.createdAt;
   return {
     fingerprint: contentFingerprint(),

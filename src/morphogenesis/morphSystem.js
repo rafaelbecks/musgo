@@ -128,7 +128,10 @@ function downloadBlob(blob, filename) {
 }
 
 function arrayBufferToBase64(buffer) {
-  const bytes = new Uint8Array(buffer);
+  const bytes =
+    buffer instanceof ArrayBuffer
+      ? new Uint8Array(buffer)
+      : new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
   let binary = "";
   const chunk = 0x8000;
   for (let i = 0; i < bytes.length; i += chunk) {
@@ -339,6 +342,7 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange,
   let noiseMix = 0;
   let elapsed = 0;
   let loadId = 0;
+  let sculptRevision = 0;
   const glbLoader = createGlbLoader();
   const modelAssetCache = new Map();
   let activeModelTextureSlots = null;
@@ -683,6 +687,8 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange,
     captureBaseGeometry(mesh.geometry);
     applyNoiseDeform(mesh.geometry, morphParams, noiseMix, elapsed);
     updateTransform();
+    // New cage — previous sculpt strokes no longer apply.
+    sculptRevision = 0;
   }
 
   const objLoader = new OBJLoader();
@@ -1046,8 +1052,6 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange,
     return mesh;
   }
 
-  let sculptRevision = 0;
-
   function getSculptRevision() {
     return sculptRevision;
   }
@@ -1066,12 +1070,56 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange,
     };
   }
 
+  /**
+   * Embeddable sculpt cage for .organism save (only when the user has sculpted).
+   * @returns {{ encoding: string, format: string, count: number, revision: number, positions: string } | null}
+   */
+  function getSculptForSave() {
+    if (sculptRevision <= 0) return null;
+    const snap = captureSculptSnapshot();
+    if (!snap?.positions?.length) return null;
+    return {
+      encoding: "base64",
+      format: "float32",
+      count: (snap.positions.length / 3) | 0,
+      revision: snap.revision,
+      positions: arrayBufferToBase64(snap.positions),
+    };
+  }
+
+  function decodeSculptPositions(sculpt) {
+    if (!sculpt?.positions) return null;
+    if (typeof sculpt.positions === "string") {
+      const buffer = base64ToArrayBuffer(sculpt.positions);
+      return new Float32Array(buffer);
+    }
+    if (sculpt.positions instanceof Float32Array) return sculpt.positions;
+    if (Array.isArray(sculpt.positions)) return new Float32Array(sculpt.positions);
+    return null;
+  }
+
+  /** Restore sculpt cage from a .organism `sculpt` block (after geometry rebuild). */
+  function applySculptFromOrganism(sculpt) {
+    const positions = decodeSculptPositions(sculpt);
+    if (!positions?.length) return false;
+    return applySculptSnapshot({
+      revision: typeof sculpt.revision === "number" ? sculpt.revision : 1,
+      positions,
+    });
+  }
+
   function applySculptSnapshot(snapshot) {
     const positions = snapshot instanceof Float32Array ? snapshot : snapshot?.positions;
     if (!mesh?.geometry || !positions) return false;
     const geometry = mesh.geometry;
+    if (!geometry.userData.basePosition) captureBaseGeometry(geometry);
     const base = geometry.userData.basePosition;
-    if (!base || base.length !== positions.length) return false;
+    if (!base || base.length !== positions.length) {
+      console.warn(
+        `[sculpt] cage size mismatch (mesh ${base?.length ?? 0}, sculpt ${positions.length}); skipped`
+      );
+      return false;
+    }
     base.set(positions);
     if (typeof snapshot?.revision === "number") {
       sculptRevision = snapshot.revision;
@@ -1237,6 +1285,8 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange,
     getSculptRevision,
     bumpSculptRevision,
     captureSculptSnapshot,
+    getSculptForSave,
+    applySculptFromOrganism,
     applySculptSnapshot,
     sculptBase,
     getNoiseMix,

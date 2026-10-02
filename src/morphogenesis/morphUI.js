@@ -1040,6 +1040,13 @@ export async function setupMorphUI(
     await applyOrganismMidi(state);
     await onOrganismLoaded?.(state ?? null);
     await onChange?.();
+    // Geometry is ready — reapply embedded sculpt cage if present.
+    if (state?.sculpt) {
+      const ok = morphSystem.applySculptFromOrganism?.(state.sculpt);
+      if (!ok) {
+        console.warn("[organism] sculpt cage could not be restored (vertex count mismatch?)");
+      }
+    }
   }
 
   async function applyLoadedOrganism({ state, file, fileHandle = null }) {

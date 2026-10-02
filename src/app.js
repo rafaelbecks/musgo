@@ -78,6 +78,7 @@ export async function bootApp({
   setOrganismSculptHooks({
     getRevision: () => morphSystem.getSculptRevision(),
     capture: () => morphSystem.captureSculptSnapshot(),
+    getForSave: () => morphSystem.getSculptForSave(),
     apply: (snapshot) => morphSystem.applySculptSnapshot(snapshot),
   });
 
