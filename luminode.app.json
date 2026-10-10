@@ -1,0 +1,14 @@
+{
+  "format": "luminode-app",
+  "version": 1,
+  "id": "musgo",
+  "name": "MUSGO",
+  "operator": "/index.html",
+  "output": "/index.html?surface=output",
+  "defaults": {
+    "width": 1280,
+    "height": 720,
+    "frameRate": 60,
+    "alpha": false
+  }
+}

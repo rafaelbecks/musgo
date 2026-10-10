@@ -15,6 +15,7 @@ import { initPanelResize } from "./ui/panelResize.js";
 import { createCameraFocus } from "./scene/cameraFocus.js";
 import { morphParams } from "./morphogenesis/morphParams.js";
 import {
+  applyOrganismState,
   ensureOrganismDraftId,
   markOrganismBaseline,
   setOrganismSculptHooks,
@@ -618,6 +619,11 @@ export async function bootApp({
   sceneSystem.setAnimationLoop(animate);
 
   return {
+    async followOrganism(state) {
+      applyOrganismState(state);
+      await morphSystem.sync();
+      underwaterSystem?.refreshFromMorph?.();
+    },
     async openOrganismExternal(file, fileHandle = null) {
       try {
         await toolsPanel.loadOrganismFile(file, {

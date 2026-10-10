@@ -1,4 +1,5 @@
 import { bootApp } from "./app.js";
+import { attachMusgoLink } from "./program-link.js";
 import { createSplashScreen } from "./splash/splashScreen.js";
 import {
   setupLaunchQueue,
@@ -12,6 +13,10 @@ import {
   isFetchableSrc,
   fetchImportSource,
 } from "./musgoLink.js";
+
+const outputSurface =
+  new URLSearchParams(location.search).get("surface") === "output";
+if (outputSurface) document.body.classList.add("is-output");
 
 const isLocalDev =
   location.hostname === "localhost" ||
@@ -188,34 +193,41 @@ function setupFileDrop() {
   });
 }
 
-splashApi = createSplashScreen({
-  onEnter: async ({
-    file = null,
-    fileHandle = null,
-    kind = null,
-    importSrc = null,
-    promptImport = false,
-  } = {}) => {
-    try {
-      const resolvedKind = kind || inferKind(file);
-      appApi = await bootApp({
-        pendingOrganismFile:
-          resolvedKind === "organism" ? file ?? null : null,
-        pendingOrganismHandle:
-          resolvedKind === "organism" ? fileHandle ?? null : null,
-        pendingModelFile: resolvedKind === "model" ? file ?? null : null,
-        pendingImportSrc: importSrc,
-        pendingImportPrompt: promptImport,
-      });
-      document.getElementById("app")?.removeAttribute("hidden");
-    } catch (err) {
-      console.error("Failed to boot MUSGO:", err);
-      document.getElementById("app")?.removeAttribute("hidden");
-    } finally {
-      splashApi = null;
-    }
-  },
-});
+async function enterApp({
+  file = null,
+  fileHandle = null,
+  kind = null,
+  importSrc = null,
+  promptImport = false,
+} = {}) {
+  const resolvedKind = kind || inferKind(file);
+  appApi = await bootApp({
+    pendingOrganismFile: resolvedKind === "organism" ? file ?? null : null,
+    pendingOrganismHandle:
+      resolvedKind === "organism" ? fileHandle ?? null : null,
+    pendingModelFile: resolvedKind === "model" ? file ?? null : null,
+    pendingImportSrc: importSrc,
+    pendingImportPrompt: promptImport,
+  });
+  document.getElementById("app")?.removeAttribute("hidden");
+  attachMusgoLink(appApi);
+  splashApi = null;
+}
+
+if (outputSurface) {
+  enterApp().catch((err) => {
+    console.error("Failed to boot MUSGO output:", err);
+    document.getElementById("app")?.removeAttribute("hidden");
+  });
+} else {
+  splashApi = createSplashScreen({
+    onEnter: (payload) =>
+      enterApp(payload).catch((err) => {
+        console.error("Failed to boot MUSGO:", err);
+        document.getElementById("app")?.removeAttribute("hidden");
+      }),
+  });
+}
 
 setupFileDrop();
 

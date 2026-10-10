@@ -1246,6 +1246,30 @@ textarea,
   }
 }
 
+/* Program output: only the three.js viewer. */
+body.is-output #tools-panel,
+body.is-output .panel-header,
+body.is-output .app-menu,
+body.is-output .sculpt-toolbar,
+body.is-output .fps-graph,
+body.is-output #analysis-loading,
+body.is-output #loading,
+body.is-output #viewer-mount .vr-button,
+body.is-output #viewer-mount #VRButton {
+  display: none !important;
+}
+
+body.is-output #app {
+  display: block;
+  height: 100vh;
+  background: #000;
+}
+
+body.is-output #viewer-panel {
+  position: fixed;
+  inset: 0;
+}
+
 /* —— Splash / home (MUSGO) —— */
 body.is-splash {
   background: var(--bg);
