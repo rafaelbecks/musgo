@@ -25,6 +25,7 @@ import {
   syncOrganismDirty,
 } from "../morphogenesis/organismState.js";
 import { pickImageFile } from "./imageFilePicker.js";
+import { randomDistinctDitherRgb } from "../scene/postprocessing/ditherTableValues.js";
 
 const MIDI_MAPPING_PRESETS = {
   "Arturia KeyLab Essential 49 mk3":
@@ -183,6 +184,94 @@ export function createToolsPanel({
   };
   bloomFolder.on("change", syncBloomFolder);
   syncBloomFolder();
+
+  const ditherFolder = viewFolder.addFolder({ title: "Dither", expanded: false });
+  const ditherBindings = [];
+
+  ditherFolder.addBinding(params, "ditherEnabled", { label: "enabled" });
+  ditherBindings.push(
+    ditherFolder.addBinding(params, "ditherMapSize", {
+      label: "map",
+      options: { "2×2": 2, "4×4": 4, "8×8": 8 },
+    })
+  );
+  ditherBindings.push(
+    ditherFolder.addBinding(params, "ditherScale", {
+      label: "scale",
+      min: 0.5,
+      max: 16,
+      step: 0.5,
+    })
+  );
+  ditherBindings.push(
+    ditherFolder.addBinding(params, "ditherAmount", {
+      label: "amount",
+      min: 0,
+      max: 1,
+      step: 0.01,
+    })
+  );
+  ditherBindings.push(
+    ditherFolder.addBinding(params, "ditherSaturate", {
+      label: "saturate",
+      min: 0,
+      max: 1,
+      step: 0.01,
+    })
+  );
+  ditherBindings.push(
+    ditherFolder.addBinding(params, "ditherCrush", {
+      label: "table crush",
+      min: 0,
+      max: 1,
+      step: 0.01,
+    })
+  );
+  ditherBindings.push(
+    ditherFolder.addBinding(params, "ditherTableR", {
+      label: "red table",
+      min: 0,
+      max: 1,
+      step: 0.01,
+    })
+  );
+  ditherBindings.push(
+    ditherFolder.addBinding(params, "ditherTableG", {
+      label: "green table",
+      min: 0,
+      max: 1,
+      step: 0.01,
+    })
+  );
+  ditherBindings.push(
+    ditherFolder.addBinding(params, "ditherTableB", {
+      label: "blue table",
+      min: 0,
+      max: 1,
+      step: 0.01,
+    })
+  );
+  const randomTablesBtn = ditherFolder.addButton({ title: "Random tables" });
+  ditherBindings.push(randomTablesBtn);
+  randomTablesBtn.on("click", () => {
+    const tables = randomDistinctDitherRgb();
+    params.ditherTableR = tables.tableValuesR;
+    params.ditherTableG = tables.tableValuesG;
+    params.ditherTableB = tables.tableValuesB;
+    params.ditherCrush = 1;
+    params.ditherEnabled = true;
+    pane.refresh();
+    syncDitherFolder();
+  });
+
+  const syncDitherFolder = () => {
+    const show = params.ditherEnabled;
+    for (const binding of ditherBindings) {
+      binding.hidden = !show;
+    }
+  };
+  ditherFolder.on("change", syncDitherFolder);
+  syncDitherFolder();
 
   let morphUi = null;
   let envBinding = null;

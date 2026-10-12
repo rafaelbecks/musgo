@@ -36,6 +36,17 @@ const BLOOM_PARAMS = [
   num("bloomThreshold", "threshold", 0, 1, 0.01),
 ];
 
+const DITHER_PARAMS = [
+  checkbox("ditherEnabled", "enabled"),
+  num("ditherScale", "scale", 0.5, 16, 0.5),
+  num("ditherAmount", "amount", 0, 1, 0.01),
+  num("ditherSaturate", "saturate", 0, 1, 0.01),
+  num("ditherCrush", "table crush", 0, 1, 0.01),
+  num("ditherTableR", "red table", 0, 1, 0.01),
+  num("ditherTableG", "green table", 0, 1, 0.01),
+  num("ditherTableB", "blue table", 0, 1, 0.01),
+];
+
 /** Only continuous / toggle targets — skip selects (grammar, family, etc.). */
 function modulableOnly(params) {
   return params.filter((p) => p.type === "number" || p.type === "checkbox");
@@ -76,6 +87,11 @@ export const MOD_CATEGORIES = [
     id: "bloom",
     label: "Bloom",
     getParams: () => BLOOM_PARAMS,
+  },
+  {
+    id: "dither",
+    label: "Dither",
+    getParams: () => DITHER_PARAMS,
   },
 ];
 
