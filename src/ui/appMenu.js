@@ -47,6 +47,7 @@ export function createAppMenu({
             { id: "importObj", label: "OBJ…", icon: "shapes-outline" },
             { id: "importUsdz", label: "USDZ…", icon: "scan-outline" },
             { id: "importStl", label: "STL…", icon: "triangle-outline" },
+            { id: "importSrt", label: "SRT…", icon: "text-outline" },
           ],
         },
         {

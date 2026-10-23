@@ -202,6 +202,17 @@ function fieldLabel(section, key, value) {
     const name = raw.charAt(0).toLowerCase() + raw.slice(1);
     return `underwater ${name}`;
   }
+  if (section === "subtitles") {
+    if (key === "file") return "SRT";
+    if (key === "index") return "subtitle cue";
+    if (key === "fontSize") return "subtitle size";
+    if (key === "width") return "subtitle width";
+    if (key === "anchor") return "subtitle place";
+    if (key === "color") return "subtitle color";
+    if (key === "font") return "subtitle font";
+    if (key === "show") return value ? "subtitles on" : "subtitles off";
+    return `subtitle ${key}`;
+  }
   if (section === "midi") {
     if (key === "webMidiEnabled") return value ? "MIDI on" : "MIDI off";
     if (key === "mapping") return "MIDI mapping";
@@ -248,6 +259,7 @@ export function describeOrganismChange(prevFingerprint, nextFingerprint) {
     ...diffSection(prev, next, "underwater"),
     ...diffSection(prev, next, "midi"),
     ...diffSection(prev, next, "modulation"),
+    ...diffSection(prev, next, "subtitles"),
   ];
   if (prev.sculpt !== next.sculpt) parts.push("sculpt");
   if (!parts.length) return "cambio";

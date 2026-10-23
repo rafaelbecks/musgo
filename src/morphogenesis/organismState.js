@@ -95,6 +95,20 @@ let envAssetHooks = null;
  * } | null} */
 let sculptHooks = null;
 
+/** @type {{
+ *   serialize: () => object | null,
+ *   apply: (sensor: object | null) => void,
+ *   reset?: () => void,
+ * } | null} */
+let sensorHooks = null;
+
+/** @type {{
+ *   serialize: () => object | null,
+ *   apply: (subtitles: object | null) => void,
+ *   reset?: () => void,
+ * } | null} */
+let subtitleHooks = null;
+
 /** Filled by the history module so edits and saves can be recorded without a circular import. */
 let onEdited = () => {};
 let onFileSaved = () => {};
@@ -130,6 +144,16 @@ export function setOrganismEnvAssetHooks(hooks) {
 /** Register sculpt base-cage hooks for undo/redo fingerprints + restore. */
 export function setOrganismSculptHooks(hooks) {
   sculptHooks = hooks;
+}
+
+/** Register Ardeidae sensor settings so they travel with the .organism file. */
+export function setOrganismSensorHooks(hooks) {
+  sensorHooks = hooks;
+}
+
+/** Register subtitle settings and the embedded SRT so they travel with the file. */
+export function setOrganismSubtitleHooks(hooks) {
+  subtitleHooks = hooks;
 }
 
 /** Restore morph / viewer / underwater to factory defaults (before file merge). */
@@ -263,6 +287,8 @@ function contentFingerprint() {
     viewer: Object.fromEntries(VIEWER_KEYS.map((k) => [k, viewerParams[k]])),
     underwater: Object.fromEntries(UNDERWATER_KEYS.map((k) => [k, viewerParams[k]])),
     midi: midiHooks?.serialize?.() ?? null,
+    sensor: sensorHooks?.serialize?.() ?? null,
+    subtitles: subtitleHooks?.serialize?.() ?? null,
     modulation: modulationSystem.serialize(),
     sculpt: sculptHooks?.getRevision?.() ?? 0,
   });
@@ -288,6 +314,10 @@ export function serializeOrganism({
   };
   const midi = midiHooks?.serialize?.();
   if (midi) state.midi = midi;
+  const sensor = sensorHooks?.serialize?.();
+  if (sensor) state.sensor = sensor;
+  const subtitles = subtitleHooks?.serialize?.();
+  if (subtitles) state.subtitles = subtitles;
   if (includeModel) {
     const modelAsset = modelAssetHooks?.getForSave?.();
     if (modelAsset) state.modelAsset = modelAsset;
@@ -360,6 +390,8 @@ export function applyOrganismState(state) {
 
   // Always replace LFOs from file (missing block → clear)
   modulationSystem.loadSerialized(state.modulation ?? null);
+  sensorHooks?.apply?.(state.sensor ?? null);
+  subtitleHooks?.apply?.(state.subtitles ?? null);
 
   if (morphParams.glassEnabled) {
     viewerParams.wireframe = false;
@@ -621,6 +653,8 @@ export async function createNewOrganism() {
   if (midiHooks?.reset) {
     await midiHooks.reset();
   }
+  sensorHooks?.reset?.();
+  subtitleHooks?.reset?.();
   session.filename = null;
   session.fileHandle = null;
   ensureOrganismDraftId({ fresh: true });

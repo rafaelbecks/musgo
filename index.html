@@ -40,7 +40,19 @@
   <main id="viewer-panel">
     <header class="panel-header panel-header--viewer">
       <h1>MUSGO</h1>
-      <p class="subtitle" id="specimen-label"></p>
+      <div class="specimen-meta">
+        <p class="subtitle" id="specimen-label"></p>
+        <button
+          type="button"
+          id="output-window-btn"
+          class="output-window-btn"
+          title="Hide the interface and fill the screen"
+          aria-label="Hide the interface and fill the screen"
+          aria-pressed="false"
+        >
+          <ion-icon name="desktop-outline" aria-hidden="true"></ion-icon>
+        </button>
+      </div>
     </header>
     <div id="viewer-mount"></div>
   </main>

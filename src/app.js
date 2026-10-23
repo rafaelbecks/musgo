@@ -19,6 +19,7 @@ import {
   ensureOrganismDraftId,
   markOrganismBaseline,
   setOrganismSculptHooks,
+  setOrganismSensorHooks,
   syncOrganismDirty,
 } from "./morphogenesis/organismState.js";
 import {
@@ -43,6 +44,14 @@ import { createUnderwaterSystem } from "./underwater/underwaterSystem.js";
 import { modulationSystem } from "./modulation/modulationSystem.js";
 import { resolveModParam } from "./modulation/modulationTargets.js";
 import { fetchImportSource, isFetchableSrc } from "./musgoLink.js";
+import { createSensorClient } from "./sensor/sensorClient.js";
+import { createSensorController } from "./sensor/sensorController.js";
+import {
+  applySensorSettings,
+  resetSensorSettings,
+  sensorParams,
+  serializeSensorSettings,
+} from "./sensor/sensorConfig.js";
 
 export async function bootApp({
   pendingOrganismFile = null,
@@ -50,6 +59,7 @@ export async function bootApp({
   pendingModelFile = null,
   pendingImportSrc = null,
   pendingImportPrompt = false,
+  pendingSrtFile = null,
 } = {}) {
   const loading = createLoading();
   const analysisLoading = createAnalysisLoading();
@@ -168,6 +178,18 @@ export async function bootApp({
   const underwaterSystem = createUnderwaterSystem({
     sceneSystem,
     morphSystem,
+  });
+
+  let sensorController;
+  const sensorClient = createSensorClient({
+    onState: (state) => sensorController.handleState(state),
+  });
+  sensorController = createSensorController({
+    getModel: () => morphSystem.getAnalysisMesh(),
+    controls: sceneSystem.controls,
+    input,
+    setExternalTransform: (flags) => morphSystem.setExternalTransform(flags),
+    onReleaseModel: () => morphSystem.applyTransform(),
   });
 
   const panelResize = initPanelResize({
@@ -383,6 +405,74 @@ export async function bootApp({
       chamberPicker?.setEnabled(params.showChamberGraph);
     },
     underwaterSystem,
+    sensorClient,
+    sensorController,
+  });
+  sensorClient.connect(sensorParams.url);
+
+  setOrganismSensorHooks({
+    serialize: serializeSensorSettings,
+    apply(sensor) {
+      const previousUrl = sensorParams.url;
+      const wasConnected = sensorParams.connected;
+      applySensorSettings(sensor);
+      sensorController.setActive(Boolean(sensorParams.enabled));
+      if (wasConnected && sensorParams.url !== previousUrl) {
+        sensorClient.connect(sensorParams.url);
+      }
+      toolsPanel.pane?.refresh();
+    },
+    reset() {
+      resetSensorSettings();
+      sensorController.setActive(false);
+      toolsPanel.pane?.refresh();
+    },
+  });
+
+  const presentationBtn = document.getElementById("output-window-btn");
+
+  function syncPresentationLayout() {
+    requestAnimationFrame(() => sceneSystem.resize());
+  }
+
+  function exitPresentation() {
+    document.body.classList.remove("is-presentation");
+    presentationBtn?.setAttribute("aria-pressed", "false");
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.().catch(() => {});
+    }
+    syncPresentationLayout();
+  }
+
+  async function enterPresentation() {
+    document.body.classList.add("is-presentation");
+    presentationBtn?.setAttribute("aria-pressed", "true");
+    try {
+      await document.documentElement.requestFullscreen();
+    } catch {
+      // The canvas still fills the window if fullscreen is declined.
+    }
+    syncPresentationLayout();
+  }
+
+  presentationBtn?.addEventListener("click", () => {
+    if (document.body.classList.contains("is-presentation")) exitPresentation();
+    else enterPresentation();
+  });
+
+  window.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (!document.body.classList.contains("is-presentation")) return;
+    if (document.fullscreenElement) return;
+    exitPresentation();
+  });
+
+  document.addEventListener("fullscreenchange", () => {
+    if (document.fullscreenElement) return;
+    if (!document.body.classList.contains("is-presentation")) return;
+    document.body.classList.remove("is-presentation");
+    presentationBtn?.setAttribute("aria-pressed", "false");
+    syncPresentationLayout();
   });
 
   await toolsPanel.ready;
@@ -439,6 +529,7 @@ export async function bootApp({
       importObj: () => toolsPanel.importModel(null, "obj"),
       importUsdz: () => toolsPanel.importModel(null, "usdz"),
       importStl: () => toolsPanel.importModel(null, "stl"),
+      importSrt: () => toolsPanel.loadSrtFile(),
       exportGlb: () => morphSystem.exportMorphGlb(),
       exportObj: () => morphSystem.exportMorphObj(),
       exportStl: () => morphSystem.exportMorphStl(),
@@ -552,6 +643,15 @@ export async function bootApp({
     ensureOrganismDraftId();
     markOrganismBaseline();
   }
+
+  if (pendingSrtFile) {
+    try {
+      await toolsPanel.loadSrtFile(pendingSrtFile);
+    } catch (err) {
+      console.error("[srt] splash load failed", err);
+      window.alert(err?.message || "Failed to load SRT file.");
+    }
+  }
   if (!isOrganismHistoryReady()) anchorOrganismHistory("Inicio");
   if (params.autoAnalyze) {
     await runAnalysis();
@@ -603,6 +703,7 @@ export async function bootApp({
         morphSystem.applyLiveState();
       }
       morphSystem.update(delta);
+      if (!inVr) sensorController.update(delta);
       underwaterSystem.update(delta);
 
       sceneSystem.render();
@@ -646,6 +747,17 @@ export async function bootApp({
         if (err?.message === "File picker cancelled.") return;
         console.error("[import] external import failed", err);
         window.alert(err?.message || "No se pudo importar el modelo.");
+      }
+    },
+    async loadSrtExternal(file) {
+      try {
+        await toolsPanel.loadSrtFile(file);
+      } catch (err) {
+        if (err?.message === "File picker cancelled." || err?.message === "No file selected.") {
+          return;
+        }
+        console.error("[srt] external load failed", err);
+        window.alert(err?.message || "Failed to load SRT file.");
       }
     },
   };

@@ -22,10 +22,19 @@ import {
 import {
   setOrganismMidiHooks,
   setOrganismEnvAssetHooks,
+  setOrganismSubtitleHooks,
   syncOrganismDirty,
 } from "../morphogenesis/organismState.js";
 import { pickImageFile } from "./imageFilePicker.js";
+import { pickSrtFile } from "./srtFilePicker.js";
 import { randomDistinctDitherRgb } from "../scene/postprocessing/ditherTableValues.js";
+import { setupSensorUI } from "./sensorUI.js";
+import {
+  SUBTITLE_ANCHORS,
+  SUBTITLE_DEFAULTS,
+  createSubtitleOverlay,
+  subtitleFontOptions,
+} from "../subtitles/subtitleOverlay.js";
 
 const MIDI_MAPPING_PRESETS = {
   "Arturia KeyLab Essential 49 mk3":
@@ -71,6 +80,8 @@ export function createToolsPanel({
   onEnvironmentChange,
   onChamberGraphChange,
   underwaterSystem,
+  sensorClient,
+  sensorController,
 }) {
   const pane = new Pane({ container });
 
@@ -605,6 +616,101 @@ export function createToolsPanel({
     .addButton({ title: "Set light from camera (L)" })
     .on("click", () => underwaterSystem?.setLightFromCamera());
 
+  const subtitleUi = {
+    file: "—",
+    cue: "—",
+    keys: "space  ·  shift+space",
+    ...SUBTITLE_DEFAULTS,
+  };
+  let subtitleFileBinding = null;
+  let subtitleCueBinding = null;
+
+  const subtitles = createSubtitleOverlay(document.getElementById("viewer-mount"), {
+    getSettings: () => subtitleUi,
+    onEdit: () => syncOrganismDirty(),
+    onRefresh: () => pane.refresh(),
+    onStatus({ fileName, index, count }) {
+      subtitleUi.file = fileName || "—";
+      subtitleUi.cue = count > 0 ? `${index + 1} / ${count}` : "—";
+      subtitleFileBinding?.refresh();
+      subtitleCueBinding?.refresh();
+    },
+  });
+
+  const subFolder = viewTab.addFolder({ title: "Subtitles", expanded: false });
+
+  subFolder.addButton({ title: "Load SRT…" }).on("click", () => {
+    loadSrtFile().catch((err) => {
+      if (err?.message === "File picker cancelled." || err?.message === "No file selected.") {
+        return;
+      }
+      console.error("[srt] load failed", err);
+      window.alert(err?.message || "Failed to load SRT file.");
+    });
+  });
+  subFolder.addButton({ title: "Clear" }).on("click", () => {
+    subtitles.clear();
+  });
+  subFolder.addButton({ title: "Previous" }).on("click", () => {
+    subtitles.previous();
+  });
+  subFolder.addButton({ title: "Next" }).on("click", () => {
+    subtitles.next();
+  });
+
+  subtitleFileBinding = subFolder.addBinding(subtitleUi, "file", {
+    label: "file",
+    readonly: true,
+  });
+  subtitleCueBinding = subFolder.addBinding(subtitleUi, "cue", {
+    label: "cue",
+    readonly: true,
+  });
+  subFolder.addBinding(subtitleUi, "keys", {
+    label: "step",
+    readonly: true,
+  });
+  subFolder.addBinding(subtitleUi, "show", { label: "show" }).on("change", () => {
+    subtitles.sync();
+  });
+  subFolder
+    .addBinding(subtitleUi, "fontSize", {
+      label: "size",
+      min: 12,
+      max: 160,
+      step: 1,
+    })
+    .on("change", () => subtitles.sync());
+  subFolder
+    .addBinding(subtitleUi, "width", {
+      label: "width %",
+      min: 20,
+      max: 100,
+      step: 1,
+    })
+    .on("change", () => subtitles.sync());
+  subFolder
+    .addBinding(subtitleUi, "anchor", {
+      label: "place",
+      options: SUBTITLE_ANCHORS,
+    })
+    .on("change", () => subtitles.sync());
+  subFolder
+    .addBinding(subtitleUi, "color", { label: "color" })
+    .on("change", () => subtitles.sync());
+  subFolder
+    .addBinding(subtitleUi, "font", {
+      label: "font",
+      options: subtitleFontOptions(),
+    })
+    .on("change", () => subtitles.sync());
+
+  async function loadSrtFile(file = null) {
+    const picked = file ?? (await pickSrtFile());
+    await subtitles.loadFile(picked);
+    pane.refresh();
+  }
+
   // Hidden panels: Acoustics, Playback, SuperCollider, External bridge
   const pitchBinding = { refresh: () => {} };
   const bridgeParams = {
@@ -691,6 +797,11 @@ export function createToolsPanel({
   });
   bridgeFolder.addBinding(bridgeParams, "autoSend", { label: "auto send" });
   */
+
+  if (sensorClient && sensorController) {
+    const sensorUi = setupSensorUI(settingsTab, { pane, sensorClient, sensorController });
+    sensorClient.onStatus = sensorUi.onStatus;
+  }
 
   // --- Settings: WebMIDI + CC mapping ---
   const midiFolder = settingsTab.addFolder({ title: "WebMIDI", expanded: false });
@@ -1408,6 +1519,11 @@ export function createToolsPanel({
   setOrganismEnvAssetHooks({
     getForSave: () => sceneSystem.getEnvAssetForSave?.() ?? null,
   });
+  setOrganismSubtitleHooks({
+    serialize: () => subtitles.getForSave(),
+    apply: (block) => subtitles.applySaved(block),
+    reset: () => subtitles.reset(),
+  });
 
   async function applyEnvironment() {
     if (params.customEnvEnabled && customEnvFile) {
@@ -1477,5 +1593,6 @@ export function createToolsPanel({
       await morphUiReady;
       return morphUi.importModel(file, format);
     },
+    loadSrtFile,
   };
 }

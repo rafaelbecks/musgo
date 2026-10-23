@@ -8,6 +8,7 @@ import {
   isOrganismFile,
 } from "./pwa.js";
 import { isModelFile } from "./ui/modelFilePicker.js";
+import { isSrtFile } from "./ui/srtFilePicker.js";
 import {
   parseMusgoImport,
   isFetchableSrc,
@@ -23,7 +24,7 @@ const isLocalDev =
   location.hostname === "127.0.0.1" ||
   location.hostname === "[::1]";
 
-/** @type {{ openOrganismExternal: Function, importModelExternal: Function } | null} */
+/** @type {{ openOrganismExternal: Function, importModelExternal: Function, loadSrtExternal: Function } | null} */
 let appApi = null;
 /** @type {{ enter: Function } | null} */
 let splashApi = null;
@@ -72,13 +73,29 @@ if (isLocalDev) {
  * @param {{
  *   file?: File | null,
  *   fileHandle?: FileSystemFileHandle | null,
- *   kind?: "organism" | "model",
+ *   kind?: "organism" | "model" | "srt",
  *   importSrc?: string | null,
  *   promptImport?: boolean,
  * }} payload
  */
 async function deliverExternal(payload) {
   const kind = payload.kind || inferKind(payload.file);
+  if (kind === "srt") {
+    if (!payload.file) return;
+    if (appApi) {
+      await appApi.loadSrtExternal(payload.file);
+      return;
+    }
+    if (splashApi?.enter) {
+      await splashApi.enter({
+        file: payload.file,
+        fileHandle: payload.fileHandle ?? null,
+        kind: "srt",
+      });
+    }
+    return;
+  }
+
   if (appApi) {
     if (kind === "model") {
       if (payload.file) {
@@ -112,6 +129,7 @@ async function deliverExternal(payload) {
 
 function inferKind(file) {
   if (file && isModelFile(file)) return "model";
+  if (file && isSrtFile(file)) return "srt";
   return "organism";
 }
 
@@ -123,12 +141,17 @@ async function openExternalFile(file, fileHandle = null) {
     return;
   }
 
+  if (isSrtFile(file)) {
+    await deliverExternal({ file, fileHandle, kind: "srt" });
+    return;
+  }
+
   if (isOrganismFile(file)) {
     await deliverExternal({ file, fileHandle, kind: "organism" });
     return;
   }
 
-  window.alert("Open a .organism, .usdz, .glb, .obj or .stl file.");
+  window.alert("Open a .organism, .usdz, .glb, .obj, .stl or .srt file.");
 }
 
 async function handleImportHref(href) {
@@ -208,6 +231,7 @@ async function enterApp({
     pendingModelFile: resolvedKind === "model" ? file ?? null : null,
     pendingImportSrc: importSrc,
     pendingImportPrompt: promptImport,
+    pendingSrtFile: resolvedKind === "srt" ? file ?? null : null,
   });
   document.getElementById("app")?.removeAttribute("hidden");
   attachMusgoLink(appApi);

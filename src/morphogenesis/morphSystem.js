@@ -1022,14 +1022,27 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange,
     builtKey = key;
   }
 
+  let externalRotation = false;
+  let externalPosition = false;
+
   function updateTransform() {
     if (!mesh) return;
-    mesh.rotation.set(
-      morphParams.rotationX,
-      morphParams.rotationY,
-      morphParams.rotationZ
-    );
-    mesh.position.set(0, 0, 0);
+    if (!externalRotation) {
+      mesh.rotation.set(
+        morphParams.rotationX,
+        morphParams.rotationY,
+        morphParams.rotationZ
+      );
+    }
+    if (!externalPosition) {
+      mesh.position.set(0, 0, 0);
+    }
+  }
+
+  /** Sensor (or other live input) owns mesh rotation / position until released. */
+  function setExternalTransform({ rotation = false, position = false } = {}) {
+    externalRotation = rotation;
+    externalPosition = position;
   }
 
   function disposeMesh() {
@@ -1318,6 +1331,7 @@ export function createMorphSystem({ scene, params: viewerParams, onViewerChange,
     applyLiveState,
     update: updateNoise,
     applyTransform: updateTransform,
+    setExternalTransform,
     applyMaterial: () => {
       if (mesh) applyMaterialState(mesh.material);
     },
